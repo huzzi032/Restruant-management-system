@@ -32,7 +32,7 @@ import {
   TrendingUp,
   PlusCircle,
 } from 'lucide-react';
-import { menuService } from '@/services/api';
+import { menuService, resolveMediaUrl } from '@/services/api';
 import { toast } from 'sonner';
 
 export default function MenuManagement() {
@@ -51,6 +51,7 @@ export default function MenuManagement() {
     is_vegetarian: false,
     is_spicy: false,
   });
+  const [itemImageFile, setItemImageFile] = useState<File | null>(null);
   const [categoryForm, setCategoryForm] = useState({
     name: '',
     description: '',
@@ -91,6 +92,7 @@ export default function MenuManagement() {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['menu-items'] });
       setIsAddItemOpen(false);
+      setItemImageFile(null);
       setItemForm({
         name: '',
         description: '',
@@ -144,18 +146,28 @@ export default function MenuManagement() {
       return;
     }
 
-    addItemMutation.mutate({
-      name: itemForm.name.trim(),
-      description: itemForm.description.trim() || undefined,
-      price: Number(itemForm.price),
-      cost: Number(itemForm.cost || '0'),
-      category_id: Number(itemForm.category_id),
-      preparation_time: Number(itemForm.preparation_time || '15'),
-      image_url: itemForm.image_url.trim() || undefined,
-      is_available: true,
-      is_vegetarian: itemForm.is_vegetarian,
-      is_spicy: itemForm.is_spicy,
-      ingredients: [],
+    (async () => {
+      let imageUrl = itemForm.image_url.trim() || undefined;
+      if (itemImageFile) {
+        const uploaded = await menuService.uploadImage(itemImageFile);
+        imageUrl = uploaded.image_url;
+      }
+
+      addItemMutation.mutate({
+        name: itemForm.name.trim(),
+        description: itemForm.description.trim() || undefined,
+        price: Number(itemForm.price),
+        cost: Number(itemForm.cost || '0'),
+        category_id: Number(itemForm.category_id),
+        preparation_time: Number(itemForm.preparation_time || '15'),
+        image_url: imageUrl,
+        is_available: true,
+        is_vegetarian: itemForm.is_vegetarian,
+        is_spicy: itemForm.is_spicy,
+        ingredients: [],
+      });
+    })().catch(() => {
+      toast.error('Failed to upload image');
     });
   };
 
@@ -286,6 +298,14 @@ export default function MenuManagement() {
                     placeholder="https://..."
                   />
                 </div>
+                <div className="space-y-2 md:col-span-2">
+                  <Label>Or Upload Image</Label>
+                  <Input
+                    type="file"
+                    accept="image/png,image/jpeg,image/webp"
+                    onChange={(e) => setItemImageFile(e.target.files?.[0] || null)}
+                  />
+                </div>
                 <div className="md:col-span-2 flex gap-6">
                   <label className="flex items-center gap-2 text-sm">
                     <input
@@ -403,7 +423,7 @@ export default function MenuManagement() {
                           <div className="flex items-center gap-3">
                             {item.image_url ? (
                               <img
-                                src={item.image_url}
+                                src={resolveMediaUrl(item.image_url)}
                                 alt={item.name}
                                 className="w-10 h-10 rounded-lg object-cover"
                               />
@@ -421,8 +441,8 @@ export default function MenuManagement() {
                           </div>
                         </TableCell>
                         <TableCell>{item.category_name}</TableCell>
-                        <TableCell>${item.price.toFixed(2)}</TableCell>
-                        <TableCell>${item.cost.toFixed(2)}</TableCell>
+                        <TableCell>{item.price.toFixed(2)}</TableCell>
+                        <TableCell>{item.cost.toFixed(2)}</TableCell>
                         <TableCell>
                           <Badge variant={item.profit_margin > 30 ? 'default' : 'secondary'}>
                             {item.profit_margin.toFixed(1)}%
@@ -509,7 +529,7 @@ export default function MenuManagement() {
                         <p className="font-medium">{index + 1}. {item.item_name}</p>
                         <p className="text-xs text-muted-foreground">Sold: {item.quantity_sold}</p>
                       </div>
-                      <Badge variant="secondary">${Number(item.revenue || 0).toFixed(2)}</Badge>
+                      <Badge variant="secondary">{Number(item.revenue || 0).toFixed(2)}</Badge>
                     </div>
                   ))}
                 </div>

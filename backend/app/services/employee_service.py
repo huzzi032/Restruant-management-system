@@ -3,6 +3,7 @@ Employee management service
 """
 from sqlalchemy.orm import Session, joinedload
 from sqlalchemy import func, extract
+from sqlalchemy.exc import IntegrityError
 from fastapi import HTTPException, status
 from typing import List, Optional
 from datetime import datetime, date, timedelta
@@ -19,18 +20,38 @@ class EmployeeService:
     @staticmethod
     def create_employee(db: Session, employee_data: EmployeeCreate):
         """Create a new employee"""
+        payload = employee_data.model_dump()
+        payload["employee_code"] = payload["employee_code"].strip()
+        payload["first_name"] = payload["first_name"].strip()
+        payload["last_name"] = payload["last_name"].strip()
+        payload["email"] = (payload.get("email") or "").strip() or None
+        payload["phone"] = (payload.get("phone") or "").strip() or None
+
         # Check if employee code exists
-        if db.query(Employee).filter(Employee.employee_code == employee_data.employee_code).first():
+        if db.query(Employee).filter(Employee.employee_code == payload["employee_code"]).first():
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,
                 detail="Employee code already exists"
             )
+
+        if payload["email"] and db.query(Employee).filter(Employee.email == payload["email"]).first():
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Employee email already exists"
+            )
         
-        db_employee = Employee(**employee_data.model_dump())
-        db.add(db_employee)
-        db.commit()
-        db.refresh(db_employee)
-        return db_employee
+        db_employee = Employee(**payload)
+        try:
+            db.add(db_employee)
+            db.commit()
+            db.refresh(db_employee)
+            return db_employee
+        except IntegrityError:
+            db.rollback()
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Unable to create employee due to duplicate data"
+            )
     
     @staticmethod
     def get_employees(

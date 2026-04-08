@@ -3,7 +3,8 @@ import type {
   User, LoginCredentials, AuthResponse, 
   Category, MenuItem, Table, Order, OrderItem,
   InventoryItem, InventoryTransaction, Employee, Attendance, Salary,
-  Expense, Supplier, Payment, DailyReport, DashboardSummary, AIInsight
+  Expense, Supplier, Payment, DailyReport, DashboardSummary, AIInsight,
+  BulkUserCreatePayload, BulkUserCreateResponse, PaymentReceipt, PublicMenuQrResponse, BusinessSettings
 } from '@/types';
 
 type CreateOrderPayload = {
@@ -80,6 +81,9 @@ export const userService = {
   
   createUser: (userData: Partial<User>): Promise<User> =>
     api.post('/users', userData).then(res => res.data),
+
+  createUsersBulk: (bulkData: BulkUserCreatePayload): Promise<BulkUserCreateResponse> =>
+    api.post('/users/bulk', bulkData).then(res => res.data),
   
   updateUser: (id: number, userData: Partial<User>): Promise<User> =>
     api.put(`/users/${id}`, userData).then(res => res.data),
@@ -110,6 +114,15 @@ export const menuService = {
   
   createMenuItem: (data: Partial<MenuItem>): Promise<MenuItem> =>
     api.post('/menu/items', data).then(res => res.data),
+
+  uploadImage: async (file: File): Promise<{ image_url: string; absolute_url: string }> => {
+    const formData = new FormData();
+    formData.append('image', file);
+    const response = await api.post('/menu/upload-image', formData, {
+      headers: { 'Content-Type': 'multipart/form-data' },
+    });
+    return response.data;
+  },
   
   updateMenuItem: (id: number, data: Partial<MenuItem>): Promise<MenuItem> =>
     api.put(`/menu/items/${id}`, data).then(res => res.data),
@@ -122,6 +135,17 @@ export const menuService = {
   
   getTopSelling: (params?: { limit?: number; days?: number }): Promise<{ top_items: any[] }> =>
     api.get('/menu/analytics/top-selling', { params }).then(res => res.data),
+};
+
+export const publicMenuService = {
+  getCategories: (): Promise<Category[]> =>
+    axios.get(`${API_BASE_URL}/menu/public/categories`).then(res => res.data),
+
+  getMenuItems: (params?: { category_id?: number; search?: string }): Promise<MenuItem[]> =>
+    axios.get(`${API_BASE_URL}/menu/public/items`, { params }).then(res => res.data),
+
+  getQRCode: (size?: number): Promise<PublicMenuQrResponse> =>
+    axios.get(`${API_BASE_URL}/menu/public/qr-code`, { params: { size } }).then(res => res.data),
 };
 
 // Table Service
@@ -150,7 +174,7 @@ export const tableService = {
 
 // Order Service
 export const orderService = {
-  getOrders: (params?: { status?: string; order_type?: string; table_id?: number; date_from?: string; date_to?: string }): Promise<Order[]> =>
+  getOrders: (params?: { status?: string; order_type?: string; table_id?: number; date_from?: string; date_to?: string; skip?: number; limit?: number }): Promise<Order[]> =>
     api.get('/orders', { params }).then(res => res.data),
   
   getActiveOrders: (): Promise<Order[]> =>
@@ -197,6 +221,9 @@ export const kitchenService = {
   
   markReady: (orderId: number): Promise<Order> =>
     api.patch(`/kitchen/orders/${orderId}/mark-ready`).then(res => res.data),
+
+  pickupOrder: (orderId: number): Promise<Order> =>
+    api.patch(`/kitchen/orders/${orderId}/pickup`).then(res => res.data),
   
   getStats: (): Promise<any> =>
     api.get('/kitchen/stats').then(res => res.data),
@@ -299,6 +326,9 @@ export const paymentService = {
   
   processRefund: (id: number, amount: number, reason?: string): Promise<Payment> =>
     api.post(`/payments/${id}/refund`, { amount, reason }).then(res => res.data),
+
+  getReceipt: (id: number): Promise<PaymentReceipt> =>
+    api.get(`/payments/${id}/receipt`).then(res => res.data),
   
   getDailySummary: (reportDate?: string): Promise<any> =>
     api.get('/payments/daily/summary', { params: { report_date: reportDate } }).then(res => res.data),
@@ -380,6 +410,23 @@ export const aiService = {
   
   getDashboardInsights: (): Promise<{ insights: AIInsight[] }> =>
     api.get('/ai/dashboard-insights').then(res => res.data),
+};
+
+export const systemService = {
+  getBusinessSettings: (): Promise<BusinessSettings> =>
+    api.get('/system/business-settings').then((res) => res.data),
+
+  updateBusinessSettings: (payload: BusinessSettings): Promise<BusinessSettings> =>
+    api.put('/system/business-settings', payload).then((res) => res.data),
+};
+
+export const resolveMediaUrl = (url?: string): string | undefined => {
+  if (!url) return undefined;
+  if (url.startsWith('http://') || url.startsWith('https://') || url.startsWith('data:')) {
+    return url;
+  }
+  const origin = API_BASE_URL.replace(/\/api\/v1\/?$/, '');
+  return `${origin}${url.startsWith('/') ? '' : '/'}${url}`;
 };
 
 export default api;

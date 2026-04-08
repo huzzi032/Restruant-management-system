@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { toast } from 'sonner';
 import type { User, LoginCredentials, AuthResponse } from '@/types';
 import { authService } from '@/services/api';
+import { getRoleHomePath } from '@/lib/role-home';
 
 interface AuthContextType {
   user: User | null;
@@ -39,14 +40,17 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const login = async (credentials: LoginCredentials) => {
     try {
       setIsLoading(true);
-      const response: AuthResponse = await authService.login(credentials);
+      const response: AuthResponse = await authService.login({
+        username: credentials.username.trim().toLowerCase(),
+        password: credentials.password,
+      });
       
       localStorage.setItem('token', response.access_token);
       localStorage.setItem('user', JSON.stringify(response.user));
       
       setUser(response.user);
       toast.success(`Welcome back, ${response.user.full_name}!`);
-      navigate('/dashboard');
+      navigate(getRoleHomePath(response.user.role));
     } catch (error: any) {
       toast.error(error.response?.data?.detail || 'Login failed');
       throw error;

@@ -3,7 +3,7 @@ API routers
 """
 from fastapi import APIRouter
 
-from app.routers import auth, users, menu, orders, tables, inventory, employees, expenses, payments, reports, ai, kitchen
+from app.routers import auth, users, menu, orders, tables, inventory, employees, expenses, payments, reports, ai, kitchen, system
 
 # Main API router
 api_router = APIRouter()
@@ -21,3 +21,4 @@ api_router.include_router(payments.router, prefix="/payments", tags=["Payments"]
 api_router.include_router(reports.router, prefix="/reports", tags=["Reports"])
 api_router.include_router(ai.router, prefix="/ai", tags=["AI Insights"])
 api_router.include_router(kitchen.router, prefix="/kitchen", tags=["Kitchen"])
+api_router.include_router(system.router, prefix="/system", tags=["System"])

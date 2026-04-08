@@ -2,21 +2,28 @@
 Authentication service
 """
 from sqlalchemy.orm import Session
+from sqlalchemy import func
 from datetime import datetime
 from fastapi import HTTPException, status
 
 from app.models.user import User, UserRole
 from app.core.security import verify_password, get_password_hash, create_access_token
-from app.schemas.user import UserCreate, UserUpdate
+from app.schemas.user import UserCreate, UserUpdate, BulkUserCreate
 
 
 class AuthService:
     """Service for authentication and user management"""
+
+    @staticmethod
+    def _normalize_username(username: str) -> str:
+        """Normalize usernames so login is consistent across admin-created accounts."""
+        return (username or "").strip().lower()
     
     @staticmethod
     def authenticate_user(db: Session, username: str, password: str):
         """Authenticate user with username and password"""
-        user = db.query(User).filter(User.username == username).first()
+        normalized_username = AuthService._normalize_username(username)
+        user = db.query(User).filter(func.lower(User.username) == normalized_username).first()
         
         if not user:
             return None
@@ -33,8 +40,23 @@ class AuthService:
     @staticmethod
     def create_user(db: Session, user_data: UserCreate):
         """Create a new user"""
+        try:
+            normalized_role = UserRole(user_data.role)
+        except ValueError:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail=f"Invalid role. Allowed roles: {', '.join([r.value for r in UserRole])}"
+            )
+
+        normalized_username = AuthService._normalize_username(user_data.username)
+        if len(normalized_username) < 3:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Username must be at least 3 characters"
+            )
+
         # Check if username exists
-        if db.query(User).filter(User.username == user_data.username).first():
+        if db.query(User).filter(func.lower(User.username) == normalized_username).first():
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,
                 detail="Username already registered"
@@ -49,11 +71,11 @@ class AuthService:
         
         # Create user
         db_user = User(
-            username=user_data.username,
+            username=normalized_username,
             email=user_data.email,
             full_name=user_data.full_name,
             hashed_password=get_password_hash(user_data.password),
-            role=UserRole(user_data.role),
+            role=normalized_role,
             is_active=user_data.is_active
         )
         
@@ -62,6 +84,81 @@ class AuthService:
         db.refresh(db_user)
         
         return db_user
+
+    @staticmethod
+    def create_users_in_bulk(db: Session, bulk_data: BulkUserCreate):
+        """Create multiple role-based user portals with same password."""
+        try:
+            normalized_role = UserRole(bulk_data.role)
+        except ValueError:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail=f"Invalid role. Allowed roles: {', '.join([r.value for r in UserRole])}"
+            )
+
+        username_prefix = AuthService._normalize_username(bulk_data.username_prefix)
+
+        created_users = []
+        skipped_usernames = []
+        password_hash = get_password_hash(bulk_data.shared_password)
+
+        def _sanitize_username(name: str) -> str:
+            sanitized = "".join(ch.lower() for ch in name if ch.isalnum())
+            return sanitized or bulk_data.username_prefix.lower()
+
+        custom_names = [name.strip() for name in (bulk_data.names or []) if name and name.strip()]
+        if custom_names:
+            for idx, full_name in enumerate(custom_names, start=bulk_data.start_index):
+                username = f"{username_prefix}{_sanitize_username(full_name)}"
+                if db.query(User).filter(func.lower(User.username) == username).first():
+                    username = f"{username}{idx}"
+
+                if db.query(User).filter(func.lower(User.username) == username).first():
+                    skipped_usernames.append(username)
+                    continue
+
+                user = User(
+                    username=username,
+                    full_name=full_name,
+                    hashed_password=password_hash,
+                    role=normalized_role,
+                    is_active=True,
+                )
+                db.add(user)
+                created_users.append(user)
+
+            db.commit()
+
+            for user in created_users:
+                db.refresh(user)
+
+            return created_users, skipped_usernames
+
+        for offset in range(bulk_data.quantity):
+            current_index = bulk_data.start_index + offset
+            username = f"{username_prefix}{current_index}"
+            full_name = f"{bulk_data.name_prefix} {current_index}"
+
+            if db.query(User).filter(func.lower(User.username) == username).first():
+                skipped_usernames.append(username)
+                continue
+
+            user = User(
+                username=username,
+                full_name=full_name,
+                hashed_password=password_hash,
+                role=normalized_role,
+                is_active=True,
+            )
+            db.add(user)
+            created_users.append(user)
+
+        db.commit()
+
+        for user in created_users:
+            db.refresh(user)
+
+        return created_users, skipped_usernames
     
     @staticmethod
     def get_user_by_id(db: Session, user_id: int):

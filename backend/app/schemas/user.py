@@ -4,6 +4,7 @@ User schemas
 from pydantic import BaseModel, EmailStr, Field
 from typing import Optional
 from datetime import datetime
+from typing import List
 
 
 class UserBase(BaseModel):
@@ -26,6 +27,16 @@ class UserUpdate(BaseModel):
     password: Optional[str] = None
 
 
+class BulkUserCreate(BaseModel):
+    role: str
+    shared_password: str = Field(..., min_length=6)
+    quantity: int = Field(..., ge=1, le=100)
+    username_prefix: str = Field(..., min_length=2, max_length=30)
+    name_prefix: str = Field(..., min_length=2, max_length=50)
+    start_index: int = Field(default=1, ge=1)
+    names: Optional[List[str]] = None
+
+
 class UserResponse(UserBase):
     id: int
     created_at: Optional[datetime] = None
@@ -33,6 +44,11 @@ class UserResponse(UserBase):
     
     class Config:
         from_attributes = True
+
+
+class BulkUserCreateResponse(BaseModel):
+    created_users: List[UserResponse]
+    skipped_usernames: List[str] = []
 
 
 class UserLogin(BaseModel):

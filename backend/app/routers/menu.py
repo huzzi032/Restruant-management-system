@@ -1,12 +1,19 @@
 """
 Menu management router
 """
-from fastapi import APIRouter, Depends, HTTPException, status, Query
+from fastapi import APIRouter, Depends, HTTPException, status, Query, UploadFile, File, Request
+from fastapi.responses import StreamingResponse
 from sqlalchemy.orm import Session
 from typing import List, Optional
+from io import BytesIO
+import base64
+import qrcode
+import os
+import time
 
 from app.core.database import get_db
 from app.core.security import get_current_user, require_manager, require_staff
+from app.core.config import settings
 from app.schemas.menu import (
     CategoryCreate, CategoryUpdate, CategoryResponse,
     MenuItemCreate, MenuItemUpdate, MenuItemResponse
@@ -27,6 +34,15 @@ def get_categories(
 ):
     """Get all categories"""
     categories = MenuService.get_categories(db, include_inactive=include_inactive)
+    return [cat.to_dict() for cat in categories]
+
+
+@router.get("/public/categories", response_model=List[CategoryResponse])
+def get_public_categories(
+    db: Session = Depends(get_db)
+):
+    """Public categories endpoint for customer menu."""
+    categories = MenuService.get_categories(db, include_inactive=False)
     return [cat.to_dict() for cat in categories]
 
 
@@ -98,6 +114,99 @@ def get_menu_items(
         search=search
     )
     return [item.to_dict(include_ingredients=True) for item in items]
+
+
+@router.get("/public/items", response_model=List[MenuItemResponse])
+def get_public_menu_items(
+    category_id: Optional[int] = Query(None),
+    search: Optional[str] = Query(None),
+    db: Session = Depends(get_db)
+):
+    """Public menu endpoint for customer QR menu."""
+    items = MenuService.get_menu_items(
+        db,
+        category_id=category_id,
+        available_only=True,
+        search=search,
+    )
+    return [item.to_dict(include_ingredients=True) for item in items]
+
+
+@router.get("/public/qr-code")
+def get_public_menu_qr(
+    request: Request,
+    size: int = Query(240, ge=120, le=640)
+):
+    """Generate QR image for public menu URL."""
+    menu_url = settings.PUBLIC_MENU_URL
+    if "localhost" in menu_url or "127.0.0.1" in menu_url:
+        origin = str(request.base_url).rstrip("/")
+        menu_url = f"{origin.replace(':8000', ':5173')}/menu/public"
+
+    qr = qrcode.QRCode(version=1, box_size=10, border=2)
+    qr.add_data(menu_url)
+    qr.make(fit=True)
+
+    image = qr.make_image(fill_color="black", back_color="white").resize((size, size))
+    buffer = BytesIO()
+    image.save(buffer, format="PNG")
+
+    return {
+        "menu_url": menu_url,
+        "qr_code_base64": base64.b64encode(buffer.getvalue()).decode("utf-8"),
+        "content_type": "image/png",
+    }
+
+
+@router.get("/public/qr-code/image")
+def get_public_menu_qr_image(
+    request: Request,
+    size: int = Query(240, ge=120, le=640)
+):
+    """Generate raw QR PNG image for public menu URL."""
+    menu_url = settings.PUBLIC_MENU_URL
+    if "localhost" in menu_url or "127.0.0.1" in menu_url:
+        origin = str(request.base_url).rstrip("/")
+        menu_url = f"{origin.replace(':8000', ':5173')}/menu/public"
+
+    qr = qrcode.QRCode(version=1, box_size=10, border=2)
+    qr.add_data(menu_url)
+    qr.make(fit=True)
+
+    image = qr.make_image(fill_color="black", back_color="white").resize((size, size))
+    buffer = BytesIO()
+    image.save(buffer, format="PNG")
+    buffer.seek(0)
+    return StreamingResponse(buffer, media_type="image/png")
+
+
+@router.post("/upload-image")
+def upload_menu_image(
+    image: UploadFile = File(...),
+    current_user: User = Depends(require_manager),
+):
+    """Upload a menu item image and return a URL that frontend can use."""
+    content_type = (image.content_type or "").lower()
+    if content_type not in {"image/jpeg", "image/png", "image/webp", "image/jpg"}:
+        raise HTTPException(status_code=400, detail="Only JPG, PNG, or WEBP files are allowed")
+
+    ext = os.path.splitext(image.filename or "")[1].lower() or ".png"
+    if ext not in {".jpg", ".jpeg", ".png", ".webp"}:
+        ext = ".png"
+
+    menu_dir = os.path.join(settings.UPLOAD_DIR, "menu")
+    os.makedirs(menu_dir, exist_ok=True)
+
+    filename = f"menu_{int(time.time() * 1000)}{ext}"
+    file_path = os.path.join(menu_dir, filename)
+    with open(file_path, "wb") as out:
+        out.write(image.file.read())
+
+    relative_url = f"/uploads/menu/{filename}"
+    return {
+        "image_url": relative_url,
+        "absolute_url": f"http://localhost:8000{relative_url}",
+    }
 
 
 @router.get("/items/{item_id}", response_model=MenuItemResponse)

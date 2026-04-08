@@ -241,7 +241,7 @@ export default function Inventory() {
             </div>
             <div>
               <p className="text-sm text-muted-foreground">Total Value</p>
-              <p className="text-2xl font-bold">${inventoryValue?.total_value?.toFixed(2) || '0.00'}</p>
+              <p className="text-2xl font-bold">{inventoryValue?.total_value?.toFixed(2) || '0.00'}</p>
             </div>
           </CardContent>
         </Card>
@@ -311,8 +311,8 @@ export default function Inventory() {
                         </TableCell>
                         <TableCell>{item.quantity}</TableCell>
                         <TableCell>{item.unit}</TableCell>
-                        <TableCell>${item.cost_per_unit.toFixed(2)}</TableCell>
-                        <TableCell>${item.stock_value.toFixed(2)}</TableCell>
+                        <TableCell>{item.cost_per_unit.toFixed(2)}</TableCell>
+                        <TableCell>{item.stock_value.toFixed(2)}</TableCell>
                         <TableCell>
                           <Badge variant={item.is_low_stock ? 'destructive' : 'default'}>
                             {item.stock_status}

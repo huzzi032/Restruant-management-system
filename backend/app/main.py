@@ -4,10 +4,12 @@ Restaurant Management System - FastAPI Backend
 from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
+from fastapi.staticfiles import StaticFiles
 from contextlib import asynccontextmanager
 import os
 
 from app.core.config import settings
+from app.core.business_settings import business_settings_store
 from app.core.database import init_db
 from app.routers import api_router
 
@@ -24,6 +26,7 @@ async def lifespan(app: FastAPI):
     
     # Initialize database
     init_db()
+    business_settings_store.load()
     
     yield
     
@@ -68,6 +71,9 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+# Static files (uploaded menu images and other assets)
+app.mount("/uploads", StaticFiles(directory=settings.UPLOAD_DIR), name="uploads")
 
 
 # Exception handlers

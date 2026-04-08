@@ -7,7 +7,7 @@ from typing import List, Optional
 
 from app.core.database import get_db
 from app.core.security import get_current_user, require_admin, require_manager
-from app.schemas.user import UserCreate, UserUpdate, UserResponse
+from app.schemas.user import UserCreate, UserUpdate, UserResponse, BulkUserCreate, BulkUserCreateResponse
 from app.services.auth_service import AuthService
 from app.models.user import User
 
@@ -52,6 +52,20 @@ def create_user(
     """Create new user (admin only)"""
     user = AuthService.create_user(db, user_data)
     return user.to_dict()
+
+
+@router.post("/bulk", response_model=BulkUserCreateResponse)
+def create_bulk_users(
+    bulk_data: BulkUserCreate,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(require_admin)
+):
+    """Create multiple role portals with a shared password (admin only)."""
+    created_users, skipped_usernames = AuthService.create_users_in_bulk(db, bulk_data)
+    return {
+        "created_users": [user.to_dict() for user in created_users],
+        "skipped_usernames": skipped_usernames,
+    }
 
 
 @router.put("/{user_id}", response_model=UserResponse)

@@ -272,7 +272,7 @@ export default function Employees() {
             </div>
             <div>
               <p className="text-sm text-muted-foreground">Monthly Payroll</p>
-              <p className="text-2xl font-bold">${monthlyPayroll.toFixed(0)}</p>
+              <p className="text-2xl font-bold">{monthlyPayroll.toFixed(0)}</p>
             </div>
           </CardContent>
         </Card>
@@ -349,7 +349,7 @@ export default function Employees() {
                         </TableCell>
                         <TableCell className="capitalize">{employee.role}</TableCell>
                         <TableCell>{employee.department || '-'}</TableCell>
-                        <TableCell>${employee.base_salary.toFixed(2)}</TableCell>
+                        <TableCell>{employee.base_salary.toFixed(2)}</TableCell>
                         <TableCell>
                           <Badge variant={employee.status === 'active' ? 'default' : 'secondary'}>
                             {employee.status}
@@ -478,7 +478,7 @@ export default function Employees() {
                       <TableRow key={salary.id}>
                         <TableCell>{salary.employee_name}</TableCell>
                         <TableCell>{salary.month}/{salary.year}</TableCell>
-                        <TableCell>${salary.net_salary.toFixed(2)}</TableCell>
+                        <TableCell>{salary.net_salary.toFixed(2)}</TableCell>
                         <TableCell>
                           {salary.is_paid ? (
                             <Badge className="gap-1"><CheckCircle className="h-3 w-3" /> Paid</Badge>

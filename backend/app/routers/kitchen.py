@@ -6,7 +6,7 @@ from sqlalchemy.orm import Session
 from typing import List
 
 from app.core.database import get_db
-from app.core.security import get_current_user, require_kitchen
+from app.core.security import get_current_user, require_kitchen, require_service
 from app.services.order_service import OrderService
 from app.schemas.order import OrderResponse, OrderStatusUpdate
 from app.models.user import User
@@ -80,7 +80,7 @@ def get_cooking_orders(
 @router.get("/orders/ready", response_model=List[OrderResponse])
 def get_ready_orders(
     db: Session = Depends(get_db),
-    current_user: User = Depends(require_kitchen)
+    current_user: User = Depends(require_service)
 ):
     """Get orders ready for serving"""
     orders = OrderService.get_orders(db, status=OrderStatus.READY)
@@ -124,6 +124,25 @@ def mark_order_ready(
         "status": "ready"
     })
     
+    return order.to_dict(include_items=True)
+
+
+@router.patch("/orders/{order_id}/pickup", response_model=OrderResponse)
+def pickup_ready_order(
+    order_id: int,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(require_service)
+):
+    """Mark ready order as picked up by waiter/service staff."""
+    order = OrderService.mark_order_picked_up(db, order_id, current_user.id)
+
+    _broadcast_safe({
+        "type": "order_status_update",
+        "order_id": order_id,
+        "status": "served",
+        "picked_up_by": current_user.full_name
+    })
+
     return order.to_dict(include_items=True)
 
 

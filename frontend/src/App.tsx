@@ -3,9 +3,11 @@ import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-d
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { Toaster } from 'sonner';
 import { AuthProvider } from './contexts/AuthContext';
+import { useAuth } from './contexts/AuthContext';
 import { ThemeProvider } from './contexts/ThemeContext';
 import { ProtectedRoute } from './components/ProtectedRoute';
 import { Layout } from './components/Layout';
+import { getRoleHomePath } from './lib/role-home';
 
 // Pages
 const Login = lazy(() => import('./pages/Login'));
@@ -18,6 +20,7 @@ const Inventory = lazy(() => import('./pages/Inventory'));
 const Employees = lazy(() => import('./pages/Employees'));
 const Reports = lazy(() => import('./pages/Reports'));
 const Settings = lazy(() => import('./pages/Settings'));
+const PublicMenu = lazy(() => import('./pages/PublicMenu'));
 
 // Create Query Client
 const queryClient = new QueryClient({
@@ -29,6 +32,11 @@ const queryClient = new QueryClient({
   },
 });
 
+function RoleHomeRedirect() {
+  const { user } = useAuth();
+  return <Navigate to={getRoleHomePath(user?.role)} replace />;
+}
+
 function App() {
   return (
     <QueryClientProvider client={queryClient}>
@@ -39,11 +47,12 @@ function App() {
               <Routes>
                 {/* Public Routes */}
                 <Route path="/login" element={<Login />} />
+                <Route path="/menu/public" element={<PublicMenu />} />
                 
                 {/* Protected Routes */}
                 <Route element={<ProtectedRoute />}>
                   <Route element={<Layout />}>
-                    <Route path="/" element={<Navigate to="/dashboard" replace />} />
+                    <Route path="/" element={<RoleHomeRedirect />} />
                     <Route path="/dashboard" element={<Dashboard />} />
                     <Route path="/menu" element={<MenuManagement />} />
                     <Route path="/orders" element={<OrderTaking />} />

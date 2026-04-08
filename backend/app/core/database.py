@@ -68,40 +68,46 @@ def init_db():
     )
     
     Base.metadata.create_all(bind=engine)
+    _ensure_order_pickup_columns()
     _seed_default_users()
-    _seed_default_categories()
-    _seed_default_tables()
+    if settings.ENABLE_DEMO_SEED:
+        _seed_default_categories()
+        _seed_default_tables()
     print("Database initialized successfully!")
 
 
+def _ensure_order_pickup_columns():
+    """Lightweight migration for new order pickup tracking fields."""
+    if not settings.DATABASE_URL.startswith("sqlite"):
+        return
+
+    with engine.begin() as connection:
+        result = connection.exec_driver_sql("PRAGMA table_info(orders)")
+        existing_columns = {row[1] for row in result.fetchall()}
+
+        if "picked_up_by" not in existing_columns:
+            connection.exec_driver_sql("ALTER TABLE orders ADD COLUMN picked_up_by INTEGER")
+
+        if "picked_up_at" not in existing_columns:
+            connection.exec_driver_sql("ALTER TABLE orders ADD COLUMN picked_up_at DATETIME")
+
+
 def _seed_default_users():
-    """Create default users if they do not exist yet."""
+    """Create only an admin account if there are no users yet."""
     from app.core.security import get_password_hash
     from app.models.user import User, UserRole
 
-    default_users = [
-        ("admin", "admin123", "System Admin", UserRole.ADMIN),
-        ("manager", "manager123", "Restaurant Manager", UserRole.MANAGER),
-        ("waiter", "waiter123", "Service Waiter", UserRole.WAITER),
-        ("chef", "chef123", "Head Chef", UserRole.CHEF),
-        ("cashier", "cashier123", "Front Cashier", UserRole.CASHIER),
-    ]
-
     db = SessionLocal()
     try:
-        for username, password, full_name, role in default_users:
-            exists = db.query(User).filter(User.username == username).first()
-            if exists:
-                continue
-
+        if db.query(User).count() == 0:
             db.add(
                 User(
-                    username=username,
-                    full_name=full_name,
-                    hashed_password=get_password_hash(password),
-                    role=role,
+                    username="admin",
+                    full_name="System Admin",
+                    hashed_password=get_password_hash("admin123"),
+                    role=UserRole.ADMIN,
                     is_active=True,
-                    is_superuser=(role == UserRole.ADMIN),
+                    is_superuser=True,
                 )
             )
 

@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
@@ -26,9 +26,10 @@ import {
   Check,
   X,
 } from 'lucide-react';
-import { menuService, tableService, orderService } from '@/services/api';
+import { menuService, tableService, orderService, kitchenService, resolveMediaUrl } from '@/services/api';
 import { toast } from 'sonner';
 import type { MenuItem } from '@/types';
+import { useAuth } from '@/contexts/AuthContext';
 
 interface CartItem {
   menu_item_id: number;
@@ -39,6 +40,7 @@ interface CartItem {
 }
 
 export default function OrderTaking() {
+  const { user } = useAuth();
   const [search, setSearch] = useState('');
   const [selectedCategory, setSelectedCategory] = useState<number | null>(null);
   const [cart, setCart] = useState<CartItem[]>([]);
@@ -78,6 +80,32 @@ export default function OrderTaking() {
     queryFn: orderService.getActiveOrders,
     refetchInterval: 3000,
   });
+
+  const { data: readyOrders } = useQuery({
+    queryKey: ['ready-kitchen-orders'],
+    queryFn: kitchenService.getReadyOrders,
+    refetchInterval: 3000,
+  });
+
+  const previousReadyOrderIds = useRef<string>('');
+
+  useEffect(() => {
+    const currentIds = (readyOrders || []).map((order) => order.id).sort((a, b) => a - b);
+    const currentKey = currentIds.join(',');
+    const previousIds = previousReadyOrderIds.current
+      ? previousReadyOrderIds.current.split(',').filter(Boolean).map(Number)
+      : [];
+
+    if (previousReadyOrderIds.current && currentIds.length > previousIds.length) {
+      const added = currentIds.filter((id) => !previousIds.includes(id));
+      const addedOrders = (readyOrders || []).filter((order) => added.includes(order.id));
+      for (const order of addedOrders) {
+        toast.info(`Order ${order.order_number} is ready. A waiter should pick it up.`);
+      }
+    }
+
+    previousReadyOrderIds.current = currentKey;
+  }, [readyOrders]);
 
   const createOrderMutation = useMutation({
     mutationFn: orderService.createOrder,
@@ -165,6 +193,20 @@ export default function OrderTaking() {
     },
   });
 
+  const pickupOrderMutation = useMutation({
+    mutationFn: kitchenService.pickupOrder,
+    onSuccess: (updatedOrder) => {
+      queryClient.invalidateQueries({ queryKey: ['orders'] });
+      queryClient.invalidateQueries({ queryKey: ['active-orders'] });
+      queryClient.invalidateQueries({ queryKey: ['kitchen-orders'] });
+      queryClient.invalidateQueries({ queryKey: ['kitchen-stats'] });
+      toast.success(`Order ${updatedOrder.order_number} picked up from kitchen`);
+    },
+    onError: (error: any) => {
+      toast.error(error.response?.data?.detail || 'Failed to pick up order');
+    },
+  });
+
   const addToCart = (item: MenuItem) => {
     setCart((prev) => {
       const existing = prev.find((i) => i.menu_item_id === item.id);
@@ -235,6 +277,9 @@ export default function OrderTaking() {
   };
 
   const selectedActiveOrder = activeOrders?.find((order) => order.id === selectedOrderToEdit);
+  const myPickedOrders = (activeOrders || []).filter(
+    (order) => order.picked_up_by === user?.id && order.status === 'served'
+  );
 
   const handleCreateTable = () => {
     if (!tableForm.table_number.trim()) {
@@ -361,6 +406,40 @@ export default function OrderTaking() {
               <p className="text-sm font-medium">Modify Existing Order</p>
               <Badge variant="secondary">{activeOrders?.length || 0} active</Badge>
             </div>
+
+            <div className="mb-4">
+              <p className="text-xs font-medium text-muted-foreground mb-2">Ready Orders For Pickup</p>
+              <div className="flex flex-wrap gap-2">
+                {readyOrders?.length ? readyOrders.map((order) => (
+                  <Button
+                    key={`ready-${order.id}`}
+                    size="sm"
+                    variant="secondary"
+                    disabled={pickupOrderMutation.isPending}
+                    onClick={() => pickupOrderMutation.mutate(order.id)}
+                  >
+                    <ChefHat className="h-3.5 w-3.5 mr-1" />
+                    Accept & Pickup {order.order_number}
+                  </Button>
+                )) : (
+                  <p className="text-sm text-muted-foreground">No ready orders waiting for pickup</p>
+                )}
+              </div>
+            </div>
+
+            <div className="mb-4">
+              <p className="text-xs font-medium text-muted-foreground mb-2">My Picked Orders</p>
+              <div className="flex flex-wrap gap-2">
+                {myPickedOrders.length ? myPickedOrders.map((order) => (
+                  <Badge key={`mine-${order.id}`} variant="outline">
+                    {order.order_number} • Table {order.table_number || 'N/A'}
+                  </Badge>
+                )) : (
+                  <p className="text-sm text-muted-foreground">No picked orders assigned to you yet</p>
+                )}
+              </div>
+            </div>
+
             <div className="flex flex-wrap gap-2">
               {activeOrders?.length ? activeOrders.map((order) => (
                 <Button
@@ -454,7 +533,7 @@ export default function OrderTaking() {
                   <div className="aspect-video bg-muted relative overflow-hidden">
                     {item.image_url ? (
                       <img
-                        src={item.image_url}
+                        src={resolveMediaUrl(item.image_url)}
                         alt={item.name}
                         className="w-full h-full object-cover group-hover:scale-110 transition-transform duration-300"
                       />
@@ -468,7 +547,7 @@ export default function OrderTaking() {
                   <CardContent className="p-3">
                     <h3 className="font-semibold text-sm line-clamp-1">{item.name}</h3>
                     <p className="text-lg font-bold text-primary mt-1">
-                      ${item.price.toFixed(2)}
+                      {item.price.toFixed(2)}
                     </p>
                     <p className="text-xs text-muted-foreground line-clamp-1">
                       {item.category_name}
@@ -518,7 +597,7 @@ export default function OrderTaking() {
                     <div className="flex-1">
                       <p className="font-medium text-sm">{item.name}</p>
                       <p className="text-sm text-muted-foreground">
-                        ${item.price.toFixed(2)} each
+                        {item.price.toFixed(2)} each
                       </p>
                     </div>
                     <div className="flex items-center gap-2">
@@ -558,7 +637,7 @@ export default function OrderTaking() {
         <div className="border-t p-4 space-y-4">
           <div className="flex items-center justify-between text-lg">
             <span className="font-medium">Total</span>
-            <span className="font-bold text-primary">${cartTotal.toFixed(2)}</span>
+            <span className="font-bold text-primary">{cartTotal.toFixed(2)}</span>
           </div>
           <Button
             className="w-full h-12 text-lg font-semibold"

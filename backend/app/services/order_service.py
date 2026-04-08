@@ -12,11 +12,16 @@ from app.models.table import Table, TableStatus
 from app.models.menu import MenuItem
 from app.models.inventory import InventoryItem, InventoryTransaction, InventoryTransactionType
 from app.core.config import settings
+from app.core.business_settings import business_settings_store
 from app.schemas.order import OrderCreate, OrderUpdate, OrderItemCreate, OrderStatusUpdate
 
 
 class OrderService:
     """Service for order management"""
+
+    @staticmethod
+    def _current_tax_rate() -> float:
+        return float(business_settings_store.get().get("tax_rate", settings.TAX_RATE))
 
     @staticmethod
     def _reroute_to_kitchen_after_modification(order: Order):
@@ -95,7 +100,7 @@ class OrderService:
             OrderService._deduct_inventory(db, menu_item, item_data.quantity, db_order.id)
         
         # Calculate totals
-        db_order.calculate_totals(settings.TAX_RATE)
+        db_order.calculate_totals(OrderService._current_tax_rate())
         
         # Update table status if dine-in
         if db_order.table_id:
@@ -209,7 +214,7 @@ class OrderService:
         order.updated_by = updated_by
         
         # Recalculate totals
-        order.calculate_totals(settings.TAX_RATE)
+        order.calculate_totals(OrderService._current_tax_rate())
         
         db.commit()
         db.refresh(order)
@@ -274,6 +279,34 @@ class OrderService:
                     table.status = TableStatus.AVAILABLE
                     table.current_order_id = None
         
+        db.commit()
+        db.refresh(order)
+        return order
+
+    @staticmethod
+    def mark_order_picked_up(db: Session, order_id: int, picked_up_by: int):
+        """Mark a ready order as picked up by service staff and served."""
+        order = db.query(Order).filter(Order.id == order_id).first()
+
+        if not order:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="Order not found"
+            )
+
+        if order.status != OrderStatus.READY:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Only ready orders can be picked up"
+            )
+
+        now = datetime.utcnow()
+        order.status = OrderStatus.SERVED
+        order.served_at = now
+        order.picked_up_at = now
+        order.picked_up_by = picked_up_by
+        order.updated_by = picked_up_by
+
         db.commit()
         db.refresh(order)
         return order
@@ -346,7 +379,7 @@ class OrderService:
         # Recalculate totals
         db.flush()
         OrderService._reroute_to_kitchen_after_modification(order)
-        order.calculate_totals(settings.TAX_RATE)
+        order.calculate_totals(OrderService._current_tax_rate())
         order.updated_by = updated_by
         
         db.commit()
@@ -386,7 +419,7 @@ class OrderService:
         
         # Recalculate totals
         OrderService._reroute_to_kitchen_after_modification(order)
-        order.calculate_totals(settings.TAX_RATE)
+        order.calculate_totals(OrderService._current_tax_rate())
         order.updated_by = updated_by
         
         db.commit()

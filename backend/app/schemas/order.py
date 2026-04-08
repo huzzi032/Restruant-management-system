@@ -100,10 +100,13 @@ class OrderResponse(OrderBase):
     kitchen_started_at: Optional[datetime] = None
     ready_at: Optional[datetime] = None
     served_at: Optional[datetime] = None
+    picked_up_at: Optional[datetime] = None
     completed_at: Optional[datetime] = None
     
     created_by: int
     creator_name: Optional[str] = None
+    picked_up_by: Optional[int] = None
+    picked_up_by_name: Optional[str] = None
     
     class Config:
         from_attributes = True

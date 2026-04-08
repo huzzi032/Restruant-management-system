@@ -18,8 +18,9 @@ import {
   RefreshCw,
   ArrowUpRight,
   ArrowDownRight,
+  ClipboardList,
 } from 'lucide-react';
-import { reportService, aiService } from '@/services/api';
+import { reportService, aiService, orderService } from '@/services/api';
 import type { AIInsight } from '@/types';
 import { toast } from 'sonner';
 import { useAuth } from '@/contexts/AuthContext';
@@ -143,6 +144,11 @@ export default function Dashboard() {
     enabled: canUseAI,
   });
 
+  const { data: recentOrders, isLoading: recentOrdersLoading } = useQuery({
+    queryKey: ['dashboard-recent-orders'],
+    queryFn: () => orderService.getOrders({ limit: 12 }),
+  });
+
   useEffect(() => {
     if (aiInsightsData?.insights) {
       setInsights(aiInsightsData.insights);
@@ -191,7 +197,7 @@ export default function Dashboard() {
           <>
             <StatCard
               title="Today's Sales"
-              value={`$${summary?.today_sales?.toFixed(2) || '0.00'}`}
+              value={summary?.today_sales?.toFixed(2) || '0.00'}
               icon={DollarSign}
               color="bg-green-500"
               delay={0}
@@ -320,6 +326,55 @@ export default function Dashboard() {
           )}
         </motion.div>
       </div>
+
+      <motion.div variants={itemVariants}>
+        <Card>
+          <CardHeader className="flex flex-row items-center justify-between">
+            <div className="flex items-center gap-2">
+              <ClipboardList className="h-5 w-5 text-primary" />
+              <CardTitle>Recent Orders By Staff</CardTitle>
+            </div>
+            <Badge variant="secondary">Admin tracking</Badge>
+          </CardHeader>
+          <CardContent>
+            {recentOrdersLoading ? (
+              <div className="space-y-2">
+                {Array(6).fill(0).map((_, idx) => (
+                  <Skeleton key={idx} className="h-10" />
+                ))}
+              </div>
+            ) : !recentOrders?.length ? (
+              <p className="text-sm text-muted-foreground">No order activity yet.</p>
+            ) : (
+              <div className="space-y-2">
+                {recentOrders.slice(0, 12).map((order) => (
+                  <div key={order.id} className="rounded-md border p-3 grid gap-2 sm:grid-cols-[1.1fr_1fr_1fr_0.7fr] sm:items-center">
+                    <div>
+                      <p className="font-medium">{order.order_number}</p>
+                      <p className="text-xs text-muted-foreground">
+                        {order.table_number ? `Table ${order.table_number}` : order.order_type}
+                      </p>
+                    </div>
+                    <div>
+                      <p className="text-xs text-muted-foreground">Taken By</p>
+                      <p className="text-sm font-medium">{order.creator_name || `User #${order.created_by}`}</p>
+                    </div>
+                    <div>
+                      <p className="text-xs text-muted-foreground">Picked By</p>
+                      <p className="text-sm font-medium">{order.picked_up_by_name || '-'}</p>
+                    </div>
+                    <div className="sm:text-right">
+                      <Badge className="capitalize" variant="outline">
+                        {order.status.replace('_', ' ')}
+                      </Badge>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+          </CardContent>
+        </Card>
+      </motion.div>
     </motion.div>
   );
 }

@@ -307,3 +307,10 @@ Frontend:
 cd "C:\Users\hp\Downloads\Kimi_Agent_Restaurant Management System\restaurant-management-system\frontend"
 npm run dev -- --host 127.0.0.1 --port 5173
 ```
+
+python -m uvicorn app.main:app --port 8000 --reload
+
+
+
+issues
+alag alag portal nhi bn raha and menu issue

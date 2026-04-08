@@ -1,3 +1,5 @@
+import { useEffect, useMemo, useState } from 'react';
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { motion } from 'framer-motion';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -6,6 +8,7 @@ import { Label } from '@/components/ui/label';
 import { Switch } from '@/components/ui/switch';
 import { Separator } from '@/components/ui/separator';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import { Badge } from '@/components/ui/badge';
 import {
   Settings,
   User,
@@ -13,15 +16,124 @@ import {
   Shield,
   Store,
   CreditCard,
+  Users,
+  QrCode,
 } from 'lucide-react';
 import { useAuth } from '@/contexts/AuthContext';
+import { publicMenuService, resolveMediaUrl, systemService, userService } from '@/services/api';
 import { toast } from 'sonner';
+import type { BulkUserCreateResponse } from '@/types';
 
 export default function SettingsPage() {
-  const { user } = useAuth();
+  const { user, hasRole } = useAuth();
+  const queryClient = useQueryClient();
+  const isAdmin = hasRole(['admin']);
+
+  const [bulkForm, setBulkForm] = useState({
+    role: 'waiter',
+    quantity: '2',
+    username_prefix: 'waiter',
+    name_prefix: 'Waiter',
+    shared_password: 'staff123',
+    start_index: '1',
+    names: '',
+  });
+
+  const [businessForm, setBusinessForm] = useState({
+    tax_rate: '0.10',
+    currency: 'PKR',
+  });
+  const [lastBulkResult, setLastBulkResult] = useState<BulkUserCreateResponse | null>(null);
 
   const handleSave = () => {
     toast.success('Settings saved successfully!');
+  };
+
+  const { data: users } = useQuery({
+    queryKey: ['users', 'settings-list'],
+    queryFn: () => userService.getUsers({ limit: 200 }),
+    enabled: isAdmin,
+  });
+
+  const { data: qrData } = useQuery({
+    queryKey: ['public-menu-qr'],
+    queryFn: () => publicMenuService.getQRCode(260),
+  });
+
+  const { data: businessSettings } = useQuery({
+    queryKey: ['business-settings'],
+    queryFn: systemService.getBusinessSettings,
+  });
+
+  useEffect(() => {
+    if (!businessSettings) return;
+    setBusinessForm({
+      tax_rate: String(businessSettings.tax_rate),
+      currency: businessSettings.currency,
+    });
+  }, [businessSettings]);
+
+  const bulkCreateMutation = useMutation({
+    mutationFn: userService.createUsersBulk,
+    onSuccess: (result) => {
+      setLastBulkResult(result);
+      queryClient.invalidateQueries({ queryKey: ['users'] });
+      if (result.created_users.length > 0) {
+        toast.success(`${result.created_users.length} portal accounts created. Use shown usernames to login.`);
+      }
+      if (result.skipped_usernames.length > 0) {
+        toast.warning(`Skipped existing usernames: ${result.skipped_usernames.join(', ')}`);
+      }
+    },
+    onError: (error: any) => {
+      toast.error(error.response?.data?.detail || 'Failed to create role portals');
+    },
+  });
+
+  const updateBusinessMutation = useMutation({
+    mutationFn: systemService.updateBusinessSettings,
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['business-settings'] });
+      toast.success('Business settings updated');
+    },
+    onError: (error: any) => {
+      toast.error(error.response?.data?.detail || 'Failed to update business settings');
+    },
+  });
+
+  const roleCounts = useMemo(() => {
+    if (!users) return {} as Record<string, number>;
+    return users.reduce((acc, item) => {
+      acc[item.role] = (acc[item.role] || 0) + 1;
+      return acc;
+    }, {} as Record<string, number>);
+  }, [users]);
+
+  const handleBulkCreate = () => {
+    if (!bulkForm.shared_password || bulkForm.shared_password.length < 6) {
+      toast.error('Password must be at least 6 characters');
+      return;
+    }
+
+    bulkCreateMutation.mutate({
+      role: bulkForm.role as 'admin' | 'manager' | 'waiter' | 'chef' | 'cashier',
+      quantity: Number(bulkForm.quantity || '0'),
+      username_prefix: bulkForm.username_prefix.trim(),
+      name_prefix: bulkForm.name_prefix.trim(),
+      shared_password: bulkForm.shared_password,
+      start_index: Number(bulkForm.start_index || '1'),
+      names: bulkForm.names
+        .split('\n')
+        .map((name) => name.trim())
+        .filter(Boolean),
+    });
+  };
+
+  const handleSaveBusiness = () => {
+    updateBusinessMutation.mutate({
+      tax_rate: Number(businessForm.tax_rate || '0'),
+      currency: businessForm.currency.trim().toUpperCase(),
+    });
   };
 
   return (
@@ -53,6 +165,12 @@ export default function SettingsPage() {
             <Shield className="h-4 w-4" />
             Security
           </TabsTrigger>
+          {isAdmin && (
+            <TabsTrigger value="staff-portals" className="gap-2">
+              <Users className="h-4 w-4" />
+              Staff Portals
+            </TabsTrigger>
+          )}
         </TabsList>
 
         <TabsContent value="general" className="space-y-6">
@@ -103,14 +221,61 @@ export default function SettingsPage() {
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <div className="space-y-2">
                   <Label>Tax Rate (%)</Label>
-                  <Input type="number" placeholder="10" defaultValue="10" />
+                  <Input
+                    type="number"
+                    min="0"
+                    max="100"
+                    step="0.1"
+                    value={String((Number(businessForm.tax_rate || '0') * 100).toFixed(2))}
+                    onChange={(e) => {
+                      const percentage = Number(e.target.value || '0');
+                      setBusinessForm((prev) => ({ ...prev, tax_rate: String(percentage / 100) }));
+                    }}
+                  />
                 </div>
                 <div className="space-y-2">
                   <Label>Currency</Label>
-                  <Input placeholder="USD" defaultValue="USD" />
+                  <Input
+                    placeholder="PKR"
+                    value={businessForm.currency}
+                    onChange={(e) => setBusinessForm((prev) => ({ ...prev, currency: e.target.value }))}
+                  />
                 </div>
               </div>
-              <Button onClick={handleSave} className="w-full sm:w-auto">Save Changes</Button>
+              <Button onClick={handleSaveBusiness} className="w-full sm:w-auto" disabled={updateBusinessMutation.isPending}>
+                {updateBusinessMutation.isPending ? 'Saving...' : 'Save Changes'}
+              </Button>
+            </CardContent>
+          </Card>
+
+          <Card>
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2">
+                <QrCode className="h-5 w-5" />
+                Public Menu QR
+              </CardTitle>
+              <CardDescription>
+                Place this QR on tables to open your digital menu
+              </CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-3">
+              {qrData ? (
+                <>
+                  <img
+                    src={`data:${qrData.content_type};base64,${qrData.qr_code_base64}`}
+                    alt="Public menu QR code"
+                    className="w-44 h-44 border rounded-md"
+                  />
+                  <img
+                    src={resolveMediaUrl(`/api/v1/menu/public/qr-code/image?size=260`)}
+                    alt="Public menu QR code direct"
+                    className="w-44 h-44 border rounded-md"
+                  />
+                  <p className="text-sm text-muted-foreground break-all">{qrData.menu_url}</p>
+                </>
+              ) : (
+                <p className="text-sm text-muted-foreground">Loading QR code...</p>
+              )}
             </CardContent>
           </Card>
         </TabsContent>
@@ -218,6 +383,125 @@ export default function SettingsPage() {
             </CardContent>
           </Card>
         </TabsContent>
+
+        {isAdmin && (
+          <TabsContent value="staff-portals" className="space-y-6">
+            <Card>
+              <CardHeader>
+                <CardTitle>Dynamic Role Portals</CardTitle>
+                <CardDescription>
+                  Create multiple waiter/chef/cashier/manager accounts with one shared password
+                </CardDescription>
+              </CardHeader>
+              <CardContent className="space-y-4">
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <div className="space-y-2">
+                    <Label>Role</Label>
+                    <select
+                      className="h-10 rounded-md border bg-background px-3 w-full"
+                      value={bulkForm.role}
+                      onChange={(e) => setBulkForm((prev) => ({ ...prev, role: e.target.value }))}
+                    >
+                      <option value="waiter">Waiter</option>
+                      <option value="chef">Chef</option>
+                      <option value="cashier">Cashier</option>
+                      <option value="manager">Manager</option>
+                    </select>
+                  </div>
+                  <div className="space-y-2">
+                    <Label>How many portals?</Label>
+                    <Input
+                      type="number"
+                      min="1"
+                      max="100"
+                      value={bulkForm.quantity}
+                      onChange={(e) => setBulkForm((prev) => ({ ...prev, quantity: e.target.value }))}
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <Label>Username Prefix</Label>
+                    <Input
+                      value={bulkForm.username_prefix}
+                      onChange={(e) => setBulkForm((prev) => ({ ...prev, username_prefix: e.target.value }))}
+                      placeholder="waiter"
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <Label>Name Prefix</Label>
+                    <Input
+                      value={bulkForm.name_prefix}
+                      onChange={(e) => setBulkForm((prev) => ({ ...prev, name_prefix: e.target.value }))}
+                      placeholder="Waiter"
+                    />
+                  </div>
+                  <div className="space-y-2 md:col-span-2">
+                    <Label>Specific Names (one per line)</Label>
+                    <textarea
+                      className="w-full min-h-24 rounded-md border bg-background p-2 text-sm"
+                      value={bulkForm.names}
+                      onChange={(e) => setBulkForm((prev) => ({ ...prev, names: e.target.value }))}
+                      placeholder={'ali\nahmed\nhuzaifa'}
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <Label>Shared Password</Label>
+                    <Input
+                      type="text"
+                      value={bulkForm.shared_password}
+                      onChange={(e) => setBulkForm((prev) => ({ ...prev, shared_password: e.target.value }))}
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <Label>Start Index</Label>
+                    <Input
+                      type="number"
+                      min="1"
+                      value={bulkForm.start_index}
+                      onChange={(e) => setBulkForm((prev) => ({ ...prev, start_index: e.target.value }))}
+                    />
+                  </div>
+                </div>
+                <Button onClick={handleBulkCreate} disabled={bulkCreateMutation.isPending}>
+                  {bulkCreateMutation.isPending ? 'Creating...' : 'Create Role Portals'}
+                </Button>
+
+                {lastBulkResult && lastBulkResult.created_users.length > 0 && (
+                  <div className="rounded-md border p-3 space-y-3">
+                    <p className="text-sm font-medium">New Portal Credentials</p>
+                    <p className="text-xs text-muted-foreground">
+                      Use these usernames with your shared password to login.
+                    </p>
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-2 text-sm">
+                      {lastBulkResult.created_users.map((staff) => (
+                        <div key={staff.id} className="rounded-md bg-muted/50 p-2 flex items-center justify-between gap-2">
+                          <div className="min-w-0">
+                            <p className="font-medium truncate">{staff.full_name}</p>
+                            <p className="text-muted-foreground truncate">@{staff.username}</p>
+                          </div>
+                          <Badge variant="outline" className="capitalize shrink-0">{staff.role}</Badge>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
+              </CardContent>
+            </Card>
+
+            <Card>
+              <CardHeader>
+                <CardTitle>Portal Summary</CardTitle>
+                <CardDescription>Current account count by role</CardDescription>
+              </CardHeader>
+              <CardContent className="flex flex-wrap gap-2">
+                {['admin', 'manager', 'waiter', 'chef', 'cashier'].map((role) => (
+                  <Badge key={role} variant="secondary" className="capitalize">
+                    {role}: {roleCounts[role] || 0}
+                  </Badge>
+                ))}
+              </CardContent>
+            </Card>
+          </TabsContent>
+        )}
       </Tabs>
     </motion.div>
   );

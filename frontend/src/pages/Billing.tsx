@@ -41,6 +41,9 @@ export default function Billing() {
   const [selectedOrder, setSelectedOrder] = useState<Order | null>(null);
   const [paymentMethod, setPaymentMethod] = useState<string>('');
   const [tipAmount, setTipAmount] = useState<string>('0');
+  const [shouldPrintAfterPayment, setShouldPrintAfterPayment] = useState(false);
+  const [lastProcessedPaymentId, setLastProcessedPaymentId] = useState<number | null>(null);
+  const [isPrinting, setIsPrinting] = useState(false);
   const queryClient = useQueryClient();
 
   const { data: orders, isLoading } = useQuery({
@@ -51,17 +54,26 @@ export default function Billing() {
 
   const paymentMutation = useMutation({
     mutationFn: paymentService.createPayment,
-    onSuccess: () => {
+    onSuccess: async (payment: any) => {
+      setLastProcessedPaymentId(payment?.id ?? null);
+
       queryClient.invalidateQueries({ queryKey: ['ready-orders'] });
       queryClient.invalidateQueries({ queryKey: ['billing-orders'] });
       queryClient.invalidateQueries({ queryKey: ['payments'] });
+
+      if (shouldPrintAfterPayment && payment?.id) {
+        await handlePrintReceipt(payment.id);
+      }
+
       setSelectedOrder(null);
       setPaymentMethod('');
       setTipAmount('0');
+      setShouldPrintAfterPayment(false);
       toast.success('Payment processed successfully!');
     },
     onError: (error: any) => {
       toast.error(error.response?.data?.detail || 'Payment failed');
+      setShouldPrintAfterPayment(false);
     },
   });
 
@@ -74,14 +86,95 @@ export default function Billing() {
     )
   );
 
-  const handlePayment = () => {
+  const handlePayment = (withPrint = false) => {
     if (!selectedOrder || !paymentMethod) return;
+
+    setShouldPrintAfterPayment(withPrint);
 
     paymentMutation.mutate({
       order_id: selectedOrder.id,
       payment_method: paymentMethod as any,
       tip_amount: parseFloat(tipAmount) || 0,
     });
+  };
+
+  const escapeHtml = (value?: string) =>
+    (value || '')
+      .replaceAll('&', '&amp;')
+      .replaceAll('<', '&lt;')
+      .replaceAll('>', '&gt;')
+      .replaceAll('"', '&quot;')
+      .replaceAll("'", '&#039;');
+
+  const handlePrintReceipt = async (paymentId?: number) => {
+    const targetPaymentId = paymentId || lastProcessedPaymentId;
+    if (!targetPaymentId) {
+      toast.error('No receipt available to print');
+      return;
+    }
+
+    try {
+      setIsPrinting(true);
+      const receipt = await paymentService.getReceipt(targetPaymentId);
+      const printWindow = window.open('', '_blank', 'width=420,height=760');
+
+      if (!printWindow) {
+        toast.error('Please allow popups to print receipt');
+        return;
+      }
+
+      const rows = receipt.items
+        .map(
+          (item) =>
+            `<tr><td>${item.quantity} x ${escapeHtml(item.menu_item_name)}</td><td style="text-align:right;">${item.total_price.toFixed(2)}</td></tr>`
+        )
+        .join('');
+
+      printWindow.document.write(`
+        <html>
+          <head>
+            <title>Receipt ${escapeHtml(receipt.order_number)}</title>
+            <style>
+              body { font-family: 'Courier New', monospace; padding: 10px; width: 300px; margin: 0 auto; }
+              h2, p { margin: 6px 0; text-align: center; }
+              table { width: 100%; border-collapse: collapse; margin-top: 8px; }
+              td { font-size: 12px; padding: 3px 0; }
+              .divider { border-top: 1px dashed #111; margin: 8px 0; }
+              .right { text-align: right; }
+            </style>
+          </head>
+          <body>
+            <h2>Restaurant Receipt</h2>
+            <p>Order: ${escapeHtml(receipt.order_number)}</p>
+            <p>Table: ${escapeHtml(receipt.table_number || 'N/A')}</p>
+            <p>Date: ${new Date(receipt.completed_at || Date.now()).toLocaleString()}</p>
+            <div class="divider"></div>
+            <table>
+              ${rows}
+            </table>
+            <div class="divider"></div>
+            <table>
+              <tr><td>Subtotal</td><td class="right">${receipt.subtotal.toFixed(2)}</td></tr>
+              <tr><td>Tax</td><td class="right">${receipt.tax_amount.toFixed(2)}</td></tr>
+              <tr><td>Discount</td><td class="right">-${receipt.discount_amount.toFixed(2)}</td></tr>
+              <tr><td>Tip</td><td class="right">${receipt.tip_amount.toFixed(2)}</td></tr>
+              <tr><td><strong>Total</strong></td><td class="right"><strong>${receipt.total_amount.toFixed(2)}</strong></td></tr>
+            </table>
+            <div class="divider"></div>
+            <p>Method: ${escapeHtml(receipt.payment_method.toUpperCase())}</p>
+            <p>Cashier: ${escapeHtml(receipt.cashier_name || 'N/A')}</p>
+          </body>
+        </html>
+      `);
+      printWindow.document.close();
+      printWindow.focus();
+      printWindow.print();
+      printWindow.close();
+    } catch (error: any) {
+      toast.error(error.response?.data?.detail || 'Failed to print receipt');
+    } finally {
+      setIsPrinting(false);
+    }
   };
 
   const getPaymentIcon = (method: string) => {
@@ -156,6 +249,9 @@ export default function Billing() {
                               ? `Table ${order.table_number || 'N/A'}`
                               : `Takeaway Token ${order.order_number}`}
                           </p>
+                          {order.picked_up_by_name && (
+                            <p className="text-xs text-muted-foreground">Delivered by: {order.picked_up_by_name}</p>
+                          )}
                         </div>
                         <Badge variant={order.status === 'ready' ? 'default' : 'secondary'}>
                           {order.status.replace('_', ' ')}
@@ -167,7 +263,7 @@ export default function Billing() {
                         {order.items?.slice(0, 3).map((item) => (
                           <div key={item.id} className="flex justify-between">
                             <span>{item.quantity}x {item.menu_item_name}</span>
-                            <span>${item.total_price.toFixed(2)}</span>
+                            <span>{item.total_price.toFixed(2)}</span>
                           </div>
                         ))}
                         {order.items && order.items.length > 3 && (
@@ -180,7 +276,7 @@ export default function Billing() {
                       <div className="flex justify-between items-center">
                         <span className="text-muted-foreground">Total</span>
                         <span className="text-xl font-bold text-primary">
-                          ${order.total_amount.toFixed(2)}
+                          {order.total_amount.toFixed(2)}
                         </span>
                       </div>
                     </CardContent>
@@ -214,23 +310,23 @@ export default function Billing() {
                   </div>
                   <div className="flex justify-between">
                     <span className="text-muted-foreground">Subtotal</span>
-                    <span>${selectedOrder.subtotal.toFixed(2)}</span>
+                    <span>{selectedOrder.subtotal.toFixed(2)}</span>
                   </div>
                   <div className="flex justify-between">
                     <span className="text-muted-foreground">Tax</span>
-                    <span>${selectedOrder.tax_amount.toFixed(2)}</span>
+                    <span>{selectedOrder.tax_amount.toFixed(2)}</span>
                   </div>
                   {(selectedOrder.discount_amount || 0) > 0 && (
                     <div className="flex justify-between text-green-600">
                       <span>Discount</span>
-                      <span>-${(selectedOrder.discount_amount || 0).toFixed(2)}</span>
+                      <span>-{(selectedOrder.discount_amount || 0).toFixed(2)}</span>
                     </div>
                   )}
                 </div>
                 <Separator />
                 <div className="flex justify-between text-lg font-bold">
                   <span>Total</span>
-                  <span className="text-primary">${selectedOrder.total_amount.toFixed(2)}</span>
+                  <span className="text-primary">{selectedOrder.total_amount.toFixed(2)}</span>
                 </div>
               </div>
 
@@ -268,7 +364,7 @@ export default function Billing() {
                 <Button
                   className="w-full h-12 text-lg font-semibold"
                   disabled={!paymentMethod || paymentMutation.isPending}
-                  onClick={handlePayment}
+                  onClick={() => handlePayment(false)}
                 >
                   {paymentMutation.isPending ? (
                     <>
@@ -281,6 +377,24 @@ export default function Billing() {
                       Process Payment
                     </>
                   )}
+                </Button>
+                <Button
+                  variant="secondary"
+                  className="w-full"
+                  disabled={!paymentMethod || paymentMutation.isPending || isPrinting}
+                  onClick={() => handlePayment(true)}
+                >
+                  <Printer className="h-4 w-4 mr-2" />
+                  Process & Print
+                </Button>
+                <Button
+                  variant="outline"
+                  className="w-full"
+                  disabled={!lastProcessedPaymentId || isPrinting}
+                  onClick={() => handlePrintReceipt()}
+                >
+                  <Printer className="h-4 w-4 mr-2" />
+                  Print Last Receipt
                 </Button>
                 <Button
                   variant="outline"

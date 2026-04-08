@@ -26,6 +26,7 @@ class Settings(BaseSettings):
     
     # CORS
     CORS_ORIGINS: str = "http://localhost:5173,http://localhost:3000"
+    PUBLIC_MENU_URL: str = "http://localhost:5173/menu/public"
 
     @property
     def cors_origins_list(self) -> list[str]:
@@ -47,10 +48,12 @@ class Settings(BaseSettings):
     # Business Settings
     TAX_RATE: float = 0.10  # 10% tax
     CURRENCY: str = "USD"
+    ENABLE_DEMO_SEED: bool = False
     
     # File Storage
     UPLOAD_DIR: str = "./uploads"
     INVOICE_DIR: str = "./invoices"
+    RUNTIME_SETTINGS_FILE: str = "./runtime_settings.json"
     
     class Config:
         env_file = ".env"

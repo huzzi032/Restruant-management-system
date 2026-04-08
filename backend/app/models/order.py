@@ -65,11 +65,13 @@ class Order(Base):
     kitchen_started_at = Column(DateTime, nullable=True)
     ready_at = Column(DateTime, nullable=True)
     served_at = Column(DateTime, nullable=True)
+    picked_up_at = Column(DateTime, nullable=True)
     completed_at = Column(DateTime, nullable=True)
     
     # Users
     created_by = Column(Integer, ForeignKey("users.id"), nullable=False)
     updated_by = Column(Integer, ForeignKey("users.id"), nullable=True)
+    picked_up_by = Column(Integer, ForeignKey("users.id"), nullable=True)
     
     # Cancellation
     cancelled_by = Column(Integer, ForeignKey("users.id"), nullable=True)
@@ -81,6 +83,7 @@ class Order(Base):
     payment = relationship("Payment", back_populates="order", uselist=False)
     creator = relationship("User", foreign_keys=[created_by], back_populates="orders_created")
     updater = relationship("User", foreign_keys=[updated_by], back_populates="orders_updated")
+    pickup_user = relationship("User", foreign_keys=[picked_up_by])
     
     def __repr__(self):
         return f"<Order {self.order_number} - {self.status}>"
@@ -142,9 +145,12 @@ class Order(Base):
             "kitchen_started_at": self.kitchen_started_at.isoformat() if self.kitchen_started_at else None,
             "ready_at": self.ready_at.isoformat() if self.ready_at else None,
             "served_at": self.served_at.isoformat() if self.served_at else None,
+            "picked_up_at": self.picked_up_at.isoformat() if self.picked_up_at else None,
             "completed_at": self.completed_at.isoformat() if self.completed_at else None,
             "created_by": self.created_by,
-            "creator_name": self.creator.full_name if self.creator else None
+            "creator_name": self.creator.full_name if self.creator else None,
+            "picked_up_by": self.picked_up_by,
+            "picked_up_by_name": self.pickup_user.full_name if self.pickup_user else None
         }
         
         if include_items:

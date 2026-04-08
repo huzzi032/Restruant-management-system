@@ -135,7 +135,7 @@ export default function Reports() {
                   <DollarSign className="h-8 w-8 text-green-500" />
                   <div>
                     <p className="text-sm text-muted-foreground">Total Sales</p>
-                    <p className="text-2xl font-bold">${dailyReport?.total_sales?.toFixed(2) || '0.00'}</p>
+                    <p className="text-2xl font-bold">{dailyReport?.total_sales?.toFixed(2) || '0.00'}</p>
                   </div>
                 </div>
               </CardContent>
@@ -157,7 +157,7 @@ export default function Reports() {
                   <TrendingUp className="h-8 w-8 text-purple-500" />
                   <div>
                     <p className="text-sm text-muted-foreground">Net Profit</p>
-                    <p className="text-2xl font-bold">${dailyReport?.net_profit?.toFixed(2) || '0.00'}</p>
+                    <p className="text-2xl font-bold">{dailyReport?.net_profit?.toFixed(2) || '0.00'}</p>
                   </div>
                 </div>
               </CardContent>
@@ -168,7 +168,7 @@ export default function Reports() {
                   <BarChart3 className="h-8 w-8 text-orange-500" />
                   <div>
                     <p className="text-sm text-muted-foreground">Avg Order Value</p>
-                    <p className="text-2xl font-bold">${dailyReport?.average_order_value?.toFixed(2) || '0.00'}</p>
+                    <p className="text-2xl font-bold">{dailyReport?.average_order_value?.toFixed(2) || '0.00'}</p>
                   </div>
                 </div>
               </CardContent>
@@ -201,7 +201,7 @@ export default function Reports() {
                           {item.quantity_sold} sold
                         </span>
                         <span className="font-semibold">
-                          ${item.revenue.toFixed(2)}
+                          {item.revenue.toFixed(2)}
                         </span>
                       </div>
                     </div>
@@ -280,7 +280,7 @@ export default function Reports() {
                   <CardContent className="space-y-2 text-sm">
                     <div className="flex justify-between">
                       <span>Sales Today</span>
-                      <Badge variant="secondary">${dashboardSummary?.today_sales?.toFixed(2) || '0.00'}</Badge>
+                      <Badge variant="secondary">{dashboardSummary?.today_sales?.toFixed(2) || '0.00'}</Badge>
                     </div>
                     <div className="flex justify-between">
                       <span>Orders Today</span>

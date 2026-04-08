@@ -4,7 +4,7 @@ Payment router
 from fastapi import APIRouter, Depends, HTTPException, status, Query
 from sqlalchemy.orm import Session
 from typing import List, Optional
-from datetime import datetime, date
+from datetime import datetime, date, timedelta
 
 from app.core.database import get_db
 from app.core.security import get_current_user, require_cashier
@@ -86,6 +86,24 @@ def create_payment(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail="Order already paid"
         )
+
+    if order.status in [OrderStatus.CANCELLED, OrderStatus.COMPLETED]:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Cannot process payment for cancelled or completed order"
+        )
+
+    if order.order_type.value == "dine_in" and order.status != OrderStatus.SERVED:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Dine-in order must be served before payment"
+        )
+
+    if order.order_type.value != "dine_in" and order.status not in [OrderStatus.READY, OrderStatus.SERVED]:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Order must be ready before payment"
+        )
     
     # Calculate totals
     subtotal = order.subtotal
@@ -118,6 +136,40 @@ def create_payment(
     db.commit()
     db.refresh(payment)
     return payment.to_dict()
+
+
+@router.get("/{payment_id}/receipt")
+def get_payment_receipt(
+    payment_id: int,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(require_cashier)
+):
+    """Get printable receipt payload for a payment."""
+    payment = db.query(Payment).join(Order).filter(Payment.id == payment_id).first()
+    if not payment:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Payment not found"
+        )
+
+    order = payment.order
+    return {
+        "payment_id": payment.id,
+        "order_id": order.id,
+        "order_number": order.order_number,
+        "order_type": order.order_type.value,
+        "table_number": order.table.table_number if order.table else None,
+        "customer_name": order.customer_name,
+        "items": [item.to_dict() for item in order.items if not item.is_voided],
+        "subtotal": round(payment.subtotal, 2),
+        "tax_amount": round(payment.tax_amount, 2),
+        "discount_amount": round(payment.discount_amount, 2),
+        "tip_amount": round(payment.tip_amount, 2),
+        "total_amount": round(payment.total_amount, 2),
+        "payment_method": payment.payment_method.value,
+        "cashier_name": payment.cashier.full_name if payment.cashier else None,
+        "completed_at": payment.completed_at.isoformat() if payment.completed_at else None,
+    }
 
 
 @router.put("/{payment_id}", response_model=PaymentResponse)

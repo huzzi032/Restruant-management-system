@@ -111,9 +111,27 @@ export interface Order {
   kitchen_started_at?: string;
   ready_at?: string;
   served_at?: string;
+  picked_up_at?: string;
   completed_at?: string;
   created_by: number;
   creator_name?: string;
+  picked_up_by?: number;
+  picked_up_by_name?: string;
+}
+
+export interface BulkUserCreatePayload {
+  role: 'admin' | 'manager' | 'waiter' | 'chef' | 'cashier';
+  shared_password: string;
+  quantity: number;
+  username_prefix: string;
+  name_prefix: string;
+  start_index?: number;
+  names?: string[];
+}
+
+export interface BulkUserCreateResponse {
+  created_users: User[];
+  skipped_usernames: string[];
 }
 
 // Inventory Types
@@ -227,6 +245,35 @@ export interface Payment {
   cashier_name?: string;
   created_at?: string;
   completed_at?: string;
+}
+
+export interface PaymentReceipt {
+  payment_id: number;
+  order_id: number;
+  order_number: string;
+  order_type: string;
+  table_number?: string;
+  customer_name?: string;
+  items: OrderItem[];
+  subtotal: number;
+  tax_amount: number;
+  discount_amount: number;
+  tip_amount: number;
+  total_amount: number;
+  payment_method: string;
+  cashier_name?: string;
+  completed_at?: string;
+}
+
+export interface PublicMenuQrResponse {
+  menu_url: string;
+  qr_code_base64: string;
+  content_type: string;
+}
+
+export interface BusinessSettings {
+  tax_rate: number;
+  currency: string;
 }
 
 // Expense Types
