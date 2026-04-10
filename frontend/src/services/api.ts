@@ -4,7 +4,8 @@ import type {
   Category, MenuItem, Table, Order, OrderItem,
   InventoryItem, InventoryTransaction, Employee, Attendance, Salary,
   Expense, Supplier, Payment, DailyReport, DashboardSummary, AIInsight,
-  BulkUserCreatePayload, BulkUserCreateResponse, PaymentReceipt, PublicMenuQrResponse, BusinessSettings
+  BulkUserCreatePayload, BulkUserCreateResponse, PaymentReceipt, PublicMenuQrResponse, BusinessSettings,
+  RestaurantSignupPayload, RestaurantSignupResponse
 } from '@/types';
 
 type CreateOrderPayload = {
@@ -60,6 +61,9 @@ api.interceptors.response.use(
 export const authService = {
   login: (credentials: LoginCredentials): Promise<AuthResponse> =>
     api.post('/auth/login', credentials).then(res => res.data),
+
+  signupRestaurant: (payload: RestaurantSignupPayload): Promise<RestaurantSignupResponse> =>
+    api.post('/auth/signup', payload).then(res => res.data),
   
   register: (userData: Partial<User>): Promise<User> =>
     api.post('/auth/register', userData).then(res => res.data),

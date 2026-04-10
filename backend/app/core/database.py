@@ -63,17 +63,84 @@ def init_db():
     """Initialize database - create all tables"""
     # Import all models to ensure they're registered
     from app.models import (
-        user, menu, order, inventory, 
+        restaurant, user, menu, order, inventory,
         employee, expense, payment, table
     )
     
     Base.metadata.create_all(bind=engine)
+    _ensure_restaurant_columns()
     _ensure_order_pickup_columns()
+    default_restaurant_id = _ensure_default_restaurant()
+    _backfill_restaurant_links(default_restaurant_id)
     _seed_default_users()
     if settings.ENABLE_DEMO_SEED:
-        _seed_default_categories()
-        _seed_default_tables()
+        _seed_default_categories(default_restaurant_id)
+        _seed_default_tables(default_restaurant_id)
     print("Database initialized successfully!")
+
+
+def _ensure_restaurant_columns():
+    """Lightweight migration to add tenant columns for SQLite installs."""
+    if not settings.DATABASE_URL.startswith("sqlite"):
+        return
+
+    table_columns = {
+        "users": ["restaurant_id"],
+        "categories": ["restaurant_id"],
+        "menu_items": ["restaurant_id"],
+        "tables": ["restaurant_id"],
+        "orders": ["restaurant_id"],
+    }
+
+    with engine.begin() as connection:
+        for table_name, columns in table_columns.items():
+            result = connection.exec_driver_sql(f"PRAGMA table_info({table_name})")
+            existing_columns = {row[1] for row in result.fetchall()}
+            for column_name in columns:
+                if column_name not in existing_columns:
+                    connection.exec_driver_sql(
+                        f"ALTER TABLE {table_name} ADD COLUMN {column_name} INTEGER DEFAULT 1"
+                    )
+
+
+def _ensure_default_restaurant() -> int:
+    from app.models.restaurant import Restaurant
+
+    db = SessionLocal()
+    try:
+        default_restaurant = db.query(Restaurant).filter(Restaurant.code == "default").first()
+        if not default_restaurant:
+            default_restaurant = Restaurant(name="Restaurant Pro", code="default")
+            db.add(default_restaurant)
+            db.commit()
+            db.refresh(default_restaurant)
+        return default_restaurant.id
+    except Exception:
+        db.rollback()
+        raise
+    finally:
+        db.close()
+
+
+def _backfill_restaurant_links(default_restaurant_id: int):
+    from app.models.user import User
+    from app.models.menu import Category, MenuItem
+    from app.models.table import Table
+    from app.models.order import Order
+
+    db = SessionLocal()
+    try:
+        db.query(User).filter(User.restaurant_id.is_(None)).update({"restaurant_id": default_restaurant_id}, synchronize_session=False)
+        db.query(Category).filter(Category.restaurant_id.is_(None)).update({"restaurant_id": default_restaurant_id}, synchronize_session=False)
+        db.query(MenuItem).filter(MenuItem.restaurant_id.is_(None)).update({"restaurant_id": default_restaurant_id}, synchronize_session=False)
+        db.query(Table).filter(Table.restaurant_id.is_(None)).update({"restaurant_id": default_restaurant_id}, synchronize_session=False)
+        db.query(Order).filter(Order.restaurant_id.is_(None)).update({"restaurant_id": default_restaurant_id}, synchronize_session=False)
+        db.commit()
+    except Exception:
+        db.rollback()
+        raise
+    finally:
+        db.close()
 
 
 def _ensure_order_pickup_columns():
@@ -95,13 +162,18 @@ def _ensure_order_pickup_columns():
 def _seed_default_users():
     """Create only an admin account if there are no users yet."""
     from app.core.security import get_password_hash
+    from app.models.restaurant import Restaurant
     from app.models.user import User, UserRole
 
     db = SessionLocal()
     try:
+        default_restaurant = db.query(Restaurant).filter(Restaurant.code == "default").first()
+        default_restaurant_id = default_restaurant.id if default_restaurant else 1
+
         if db.query(User).count() == 0:
             db.add(
                 User(
+                    restaurant_id=default_restaurant_id,
                     username="admin",
                     full_name="System Admin",
                     hashed_password=get_password_hash("admin123"),
@@ -119,7 +191,7 @@ def _seed_default_users():
         db.close()
 
 
-def _seed_default_categories():
+def _seed_default_categories(restaurant_id: int):
     """Create default menu categories if they do not exist yet."""
     from app.models.menu import Category
 
@@ -134,12 +206,13 @@ def _seed_default_categories():
     db = SessionLocal()
     try:
         for index, (name, description) in enumerate(default_categories, start=1):
-            exists = db.query(Category).filter(Category.name == name).first()
+            exists = db.query(Category).filter(Category.name == name, Category.restaurant_id == restaurant_id).first()
             if exists:
                 continue
 
             db.add(
                 Category(
+                    restaurant_id=restaurant_id,
                     name=name,
                     description=description,
                     sort_order=index,
@@ -155,7 +228,7 @@ def _seed_default_categories():
         db.close()
 
 
-def _seed_default_tables():
+def _seed_default_tables(restaurant_id: int):
     """Create default restaurant tables if they do not exist yet."""
     from app.models.table import Table, TableStatus
 
@@ -171,12 +244,13 @@ def _seed_default_tables():
     db = SessionLocal()
     try:
         for table_number, capacity, location in default_tables:
-            exists = db.query(Table).filter(Table.table_number == table_number).first()
+            exists = db.query(Table).filter(Table.table_number == table_number, Table.restaurant_id == restaurant_id).first()
             if exists:
                 continue
 
             db.add(
                 Table(
+                    restaurant_id=restaurant_id,
                     table_number=table_number,
                     capacity=capacity,
                     location=location,

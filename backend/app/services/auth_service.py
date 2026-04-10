@@ -5,10 +5,13 @@ from sqlalchemy.orm import Session
 from sqlalchemy import func
 from datetime import datetime
 from fastapi import HTTPException, status
+import re
+import secrets
 
 from app.models.user import User, UserRole
+from app.models.restaurant import Restaurant
 from app.core.security import verify_password, get_password_hash, create_access_token
-from app.schemas.user import UserCreate, UserUpdate, BulkUserCreate
+from app.schemas.user import UserCreate, UserUpdate, BulkUserCreate, RestaurantSignup
 
 
 class AuthService:
@@ -18,12 +21,38 @@ class AuthService:
     def _normalize_username(username: str) -> str:
         """Normalize usernames so login is consistent across admin-created accounts."""
         return (username or "").strip().lower()
+
+    @staticmethod
+    def _normalize_restaurant_code(code: str) -> str:
+        return (code or "").strip().lower()
+
+    @staticmethod
+    def _generate_restaurant_code(name: str) -> str:
+        base = re.sub(r"[^a-z0-9]+", "-", (name or "").strip().lower()).strip("-")
+        base = base[:20] if base else "restaurant"
+        suffix = secrets.token_hex(2)
+        return f"{base}-{suffix}"
+
+    @staticmethod
+    def _find_restaurant(db: Session, restaurant_code: str | None):
+        if not restaurant_code:
+            return None
+        normalized_code = AuthService._normalize_restaurant_code(restaurant_code)
+        return db.query(Restaurant).filter(func.lower(Restaurant.code) == normalized_code).first()
     
     @staticmethod
-    def authenticate_user(db: Session, username: str, password: str):
+    def authenticate_user(db: Session, username: str, password: str, restaurant_code: str | None = None):
         """Authenticate user with username and password"""
         normalized_username = AuthService._normalize_username(username)
-        user = db.query(User).filter(func.lower(User.username) == normalized_username).first()
+        query = db.query(User).filter(func.lower(User.username) == normalized_username)
+
+        if restaurant_code:
+            restaurant = AuthService._find_restaurant(db, restaurant_code)
+            if not restaurant:
+                return None
+            query = query.filter(User.restaurant_id == restaurant.id)
+
+        user = query.first()
         
         if not user:
             return None
@@ -38,7 +67,7 @@ class AuthService:
         return user
     
     @staticmethod
-    def create_user(db: Session, user_data: UserCreate):
+    def create_user(db: Session, user_data: UserCreate, restaurant_id: int):
         """Create a new user"""
         try:
             normalized_role = UserRole(user_data.role)
@@ -56,14 +85,20 @@ class AuthService:
             )
 
         # Check if username exists
-        if db.query(User).filter(func.lower(User.username) == normalized_username).first():
+        if db.query(User).filter(
+            func.lower(User.username) == normalized_username,
+            User.restaurant_id == restaurant_id,
+        ).first():
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,
                 detail="Username already registered"
             )
         
         # Check if email exists
-        if user_data.email and db.query(User).filter(User.email == user_data.email).first():
+        if user_data.email and db.query(User).filter(
+            User.email == user_data.email,
+            User.restaurant_id == restaurant_id,
+        ).first():
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,
                 detail="Email already registered"
@@ -71,6 +106,7 @@ class AuthService:
         
         # Create user
         db_user = User(
+            restaurant_id=restaurant_id,
             username=normalized_username,
             email=user_data.email,
             full_name=user_data.full_name,
@@ -86,7 +122,7 @@ class AuthService:
         return db_user
 
     @staticmethod
-    def create_users_in_bulk(db: Session, bulk_data: BulkUserCreate):
+    def create_users_in_bulk(db: Session, bulk_data: BulkUserCreate, restaurant_id: int):
         """Create multiple role-based user portals with same password."""
         try:
             normalized_role = UserRole(bulk_data.role)
@@ -110,14 +146,21 @@ class AuthService:
         if custom_names:
             for idx, full_name in enumerate(custom_names, start=bulk_data.start_index):
                 username = f"{username_prefix}{_sanitize_username(full_name)}"
-                if db.query(User).filter(func.lower(User.username) == username).first():
+                if db.query(User).filter(
+                    func.lower(User.username) == username,
+                    User.restaurant_id == restaurant_id,
+                ).first():
                     username = f"{username}{idx}"
 
-                if db.query(User).filter(func.lower(User.username) == username).first():
+                if db.query(User).filter(
+                    func.lower(User.username) == username,
+                    User.restaurant_id == restaurant_id,
+                ).first():
                     skipped_usernames.append(username)
                     continue
 
                 user = User(
+                    restaurant_id=restaurant_id,
                     username=username,
                     full_name=full_name,
                     hashed_password=password_hash,
@@ -139,11 +182,15 @@ class AuthService:
             username = f"{username_prefix}{current_index}"
             full_name = f"{bulk_data.name_prefix} {current_index}"
 
-            if db.query(User).filter(func.lower(User.username) == username).first():
+            if db.query(User).filter(
+                func.lower(User.username) == username,
+                User.restaurant_id == restaurant_id,
+            ).first():
                 skipped_usernames.append(username)
                 continue
 
             user = User(
+                restaurant_id=restaurant_id,
                 username=username,
                 full_name=full_name,
                 hashed_password=password_hash,
@@ -161,19 +208,19 @@ class AuthService:
         return created_users, skipped_usernames
     
     @staticmethod
-    def get_user_by_id(db: Session, user_id: int):
+    def get_user_by_id(db: Session, user_id: int, restaurant_id: int):
         """Get user by ID"""
-        return db.query(User).filter(User.id == user_id).first()
+        return db.query(User).filter(User.id == user_id, User.restaurant_id == restaurant_id).first()
     
     @staticmethod
-    def get_user_by_username(db: Session, username: str):
+    def get_user_by_username(db: Session, username: str, restaurant_id: int):
         """Get user by username"""
-        return db.query(User).filter(User.username == username).first()
+        return db.query(User).filter(User.username == username, User.restaurant_id == restaurant_id).first()
     
     @staticmethod
-    def get_users(db: Session, skip: int = 0, limit: int = 100, role: str = None):
+    def get_users(db: Session, restaurant_id: int, skip: int = 0, limit: int = 100, role: str = None):
         """Get list of users with optional filtering"""
-        query = db.query(User)
+        query = db.query(User).filter(User.restaurant_id == restaurant_id)
         
         if role:
             query = query.filter(User.role == role)
@@ -181,9 +228,9 @@ class AuthService:
         return query.offset(skip).limit(limit).all()
     
     @staticmethod
-    def update_user(db: Session, user_id: int, user_data: UserUpdate):
+    def update_user(db: Session, user_id: int, user_data: UserUpdate, restaurant_id: int):
         """Update user"""
-        user = db.query(User).filter(User.id == user_id).first()
+        user = db.query(User).filter(User.id == user_id, User.restaurant_id == restaurant_id).first()
         
         if not user:
             raise HTTPException(
@@ -210,9 +257,9 @@ class AuthService:
         return user
     
     @staticmethod
-    def delete_user(db: Session, user_id: int):
+    def delete_user(db: Session, user_id: int, restaurant_id: int):
         """Delete (deactivate) user"""
-        user = db.query(User).filter(User.id == user_id).first()
+        user = db.query(User).filter(User.id == user_id, User.restaurant_id == restaurant_id).first()
         
         if not user:
             raise HTTPException(
@@ -227,9 +274,9 @@ class AuthService:
         return user
     
     @staticmethod
-    def login(db: Session, username: str, password: str):
+    def login(db: Session, username: str, password: str, restaurant_code: str | None = None):
         """Login and return token"""
-        user = AuthService.authenticate_user(db, username, password)
+        user = AuthService.authenticate_user(db, username, password, restaurant_code)
         
         if not user:
             raise HTTPException(
@@ -238,10 +285,52 @@ class AuthService:
                 headers={"WWW-Authenticate": "Bearer"},
             )
         
-        access_token = create_access_token(data={"sub": str(user.id)})
+        access_token = create_access_token(data={"sub": str(user.id), "rid": str(user.restaurant_id)})
         
         return {
             "access_token": access_token,
             "token_type": "bearer",
             "user": user
         }
+
+    @staticmethod
+    def signup_restaurant(db: Session, payload: RestaurantSignup):
+        """Create a restaurant tenant and an admin account for it."""
+        normalized_username = AuthService._normalize_username(payload.admin_username)
+        restaurant_code = AuthService._generate_restaurant_code(payload.restaurant_name)
+
+        while db.query(Restaurant).filter(func.lower(Restaurant.code) == restaurant_code).first():
+            restaurant_code = AuthService._generate_restaurant_code(payload.restaurant_name)
+
+        restaurant = Restaurant(
+            name=payload.restaurant_name.strip(),
+            code=restaurant_code,
+        )
+        db.add(restaurant)
+        db.flush()
+
+        if db.query(User).filter(
+            func.lower(User.username) == normalized_username,
+            User.restaurant_id == restaurant.id,
+        ).first():
+            normalized_username = f"{normalized_username}{secrets.randbelow(900) + 100}"
+
+        if db.query(User).filter(func.lower(User.username) == normalized_username).first():
+            normalized_username = f"{normalized_username}{secrets.randbelow(900) + 100}"
+
+        admin_user = User(
+            restaurant_id=restaurant.id,
+            username=normalized_username,
+            email=payload.admin_email,
+            full_name=payload.admin_full_name.strip(),
+            hashed_password=get_password_hash(payload.password),
+            role=UserRole.ADMIN,
+            is_active=True,
+            is_superuser=True,
+        )
+        db.add(admin_user)
+        db.commit()
+        db.refresh(restaurant)
+        db.refresh(admin_user)
+
+        return restaurant, admin_user

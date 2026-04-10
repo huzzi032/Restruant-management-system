@@ -17,38 +17,38 @@ class MenuService:
     # ========== Category Methods ==========
     
     @staticmethod
-    def create_category(db: Session, category_data: CategoryCreate):
+    def create_category(db: Session, category_data: CategoryCreate, restaurant_id: int):
         """Create a new category"""
         # Check if name exists
-        if db.query(Category).filter(Category.name == category_data.name).first():
+        if db.query(Category).filter(Category.name == category_data.name, Category.restaurant_id == restaurant_id).first():
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,
                 detail="Category name already exists"
             )
         
-        db_category = Category(**category_data.model_dump())
+        db_category = Category(restaurant_id=restaurant_id, **category_data.model_dump())
         db.add(db_category)
         db.commit()
         db.refresh(db_category)
         return db_category
     
     @staticmethod
-    def get_categories(db: Session, include_inactive: bool = False):
+    def get_categories(db: Session, restaurant_id: int, include_inactive: bool = False):
         """Get all categories"""
-        query = db.query(Category)
+        query = db.query(Category).filter(Category.restaurant_id == restaurant_id)
         if not include_inactive:
             query = query.filter(Category.is_active == True)
         return query.order_by(Category.sort_order).all()
     
     @staticmethod
-    def get_category_by_id(db: Session, category_id: int):
+    def get_category_by_id(db: Session, category_id: int, restaurant_id: int):
         """Get category by ID"""
-        return db.query(Category).filter(Category.id == category_id).first()
+        return db.query(Category).filter(Category.id == category_id, Category.restaurant_id == restaurant_id).first()
     
     @staticmethod
-    def update_category(db: Session, category_id: int, category_data: CategoryUpdate):
+    def update_category(db: Session, category_id: int, category_data: CategoryUpdate, restaurant_id: int):
         """Update category"""
-        category = db.query(Category).filter(Category.id == category_id).first()
+        category = db.query(Category).filter(Category.id == category_id, Category.restaurant_id == restaurant_id).first()
         
         if not category:
             raise HTTPException(
@@ -62,6 +62,7 @@ class MenuService:
         if "name" in update_data:
             existing = db.query(Category).filter(
                 Category.name == update_data["name"],
+                Category.restaurant_id == restaurant_id,
                 Category.id != category_id
             ).first()
             if existing:
@@ -78,9 +79,9 @@ class MenuService:
         return category
     
     @staticmethod
-    def delete_category(db: Session, category_id: int):
+    def delete_category(db: Session, category_id: int, restaurant_id: int):
         """Delete category"""
-        category = db.query(Category).filter(Category.id == category_id).first()
+        category = db.query(Category).filter(Category.id == category_id, Category.restaurant_id == restaurant_id).first()
         
         if not category:
             raise HTTPException(
@@ -102,10 +103,10 @@ class MenuService:
     # ========== Menu Item Methods ==========
     
     @staticmethod
-    def create_menu_item(db: Session, item_data: MenuItemCreate):
+    def create_menu_item(db: Session, item_data: MenuItemCreate, restaurant_id: int):
         """Create a new menu item"""
         # Check if category exists
-        category = db.query(Category).filter(Category.id == item_data.category_id).first()
+        category = db.query(Category).filter(Category.id == item_data.category_id, Category.restaurant_id == restaurant_id).first()
         if not category:
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,
@@ -114,7 +115,7 @@ class MenuService:
         
         # Create menu item
         item_dict = item_data.model_dump(exclude={"ingredients"})
-        db_item = MenuItem(**item_dict)
+        db_item = MenuItem(restaurant_id=restaurant_id, **item_dict)
         
         db.add(db_item)
         db.flush()  # Get the ID
@@ -146,6 +147,7 @@ class MenuService:
     @staticmethod
     def get_menu_items(
         db: Session,
+        restaurant_id: int,
         category_id: Optional[int] = None,
         available_only: bool = True,
         search: Optional[str] = None
@@ -154,7 +156,7 @@ class MenuService:
         query = db.query(MenuItem).options(
             joinedload(MenuItem.category),
             joinedload(MenuItem.ingredients_link).joinedload(MenuItemIngredient.inventory_item)
-        )
+        ).filter(MenuItem.restaurant_id == restaurant_id)
         
         if category_id:
             query = query.filter(MenuItem.category_id == category_id)
@@ -168,17 +170,17 @@ class MenuService:
         return query.order_by(MenuItem.name).all()
     
     @staticmethod
-    def get_menu_item_by_id(db: Session, item_id: int):
+    def get_menu_item_by_id(db: Session, item_id: int, restaurant_id: int):
         """Get menu item by ID"""
         return db.query(MenuItem).options(
             joinedload(MenuItem.category),
             joinedload(MenuItem.ingredients_link).joinedload(MenuItemIngredient.inventory_item)
-        ).filter(MenuItem.id == item_id).first()
+        ).filter(MenuItem.id == item_id, MenuItem.restaurant_id == restaurant_id).first()
     
     @staticmethod
-    def update_menu_item(db: Session, item_id: int, item_data: MenuItemUpdate):
+    def update_menu_item(db: Session, item_id: int, item_data: MenuItemUpdate, restaurant_id: int):
         """Update menu item"""
-        item = db.query(MenuItem).filter(MenuItem.id == item_id).first()
+        item = db.query(MenuItem).filter(MenuItem.id == item_id, MenuItem.restaurant_id == restaurant_id).first()
         
         if not item:
             raise HTTPException(
@@ -212,9 +214,9 @@ class MenuService:
         return item
     
     @staticmethod
-    def delete_menu_item(db: Session, item_id: int):
+    def delete_menu_item(db: Session, item_id: int, restaurant_id: int):
         """Delete menu item"""
-        item = db.query(MenuItem).filter(MenuItem.id == item_id).first()
+        item = db.query(MenuItem).filter(MenuItem.id == item_id, MenuItem.restaurant_id == restaurant_id).first()
         
         if not item:
             raise HTTPException(
@@ -227,9 +229,9 @@ class MenuService:
         return True
     
     @staticmethod
-    def toggle_availability(db: Session, item_id: int):
+    def toggle_availability(db: Session, item_id: int, restaurant_id: int):
         """Toggle item availability"""
-        item = db.query(MenuItem).filter(MenuItem.id == item_id).first()
+        item = db.query(MenuItem).filter(MenuItem.id == item_id, MenuItem.restaurant_id == restaurant_id).first()
         
         if not item:
             raise HTTPException(
@@ -243,7 +245,7 @@ class MenuService:
         return item
     
     @staticmethod
-    def get_top_selling_items(db: Session, limit: int = 10, days: int = 30):
+    def get_top_selling_items(db: Session, restaurant_id: int, limit: int = 10, days: int = 30):
         """Get top selling menu items"""
         from app.models.order import OrderItem, Order
         from datetime import datetime, timedelta
@@ -260,6 +262,7 @@ class MenuService:
         ).join(
             Order, OrderItem.order_id == Order.id
         ).filter(
+            Order.restaurant_id == restaurant_id,
             Order.created_at >= start_date,
             Order.status != 'cancelled'
         ).group_by(

@@ -6,7 +6,7 @@ from sqlalchemy.orm import Session
 from typing import List
 
 from app.core.database import get_db
-from app.core.security import get_current_user, require_staff, require_manager
+from app.core.security import get_current_user, require_staff, require_service
 from app.schemas.table import TableCreate, TableUpdate, TableResponse
 from app.models.table import Table, TableStatus
 from app.models.user import User
@@ -22,7 +22,7 @@ def get_tables(
     current_user: User = Depends(require_staff)
 ):
     """Get all tables"""
-    query = db.query(Table)
+    query = db.query(Table).filter(Table.restaurant_id == current_user.restaurant_id)
     if status:
         query = query.filter(Table.status == status)
     tables = query.order_by(Table.table_number).all()
@@ -35,7 +35,10 @@ def get_available_tables(
     current_user: User = Depends(require_staff)
 ):
     """Get available tables"""
-    tables = db.query(Table).filter(Table.status == TableStatus.AVAILABLE).order_by(Table.table_number).all()
+    tables = db.query(Table).filter(
+        Table.restaurant_id == current_user.restaurant_id,
+        Table.status == TableStatus.AVAILABLE,
+    ).order_by(Table.table_number).all()
     return [table.to_dict() for table in tables]
 
 
@@ -46,7 +49,7 @@ def get_table(
     current_user: User = Depends(require_staff)
 ):
     """Get table by ID"""
-    table = db.query(Table).filter(Table.id == table_id).first()
+    table = db.query(Table).filter(Table.id == table_id, Table.restaurant_id == current_user.restaurant_id).first()
     if not table:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
@@ -60,18 +63,21 @@ def get_table(
 def create_table(
     table_data: TableCreate,
     db: Session = Depends(get_db),
-    current_user: User = Depends(require_manager)
+    current_user: User = Depends(require_service)
 ):
-    """Create new table (manager and above)"""
+    """Create new table (service roles and above)"""
     # Check if table number exists
-    existing = db.query(Table).filter(Table.table_number == table_data.table_number).first()
+    existing = db.query(Table).filter(
+        Table.table_number == table_data.table_number,
+        Table.restaurant_id == current_user.restaurant_id,
+    ).first()
     if existing:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail="Table number already exists"
         )
     
-    table = Table(**table_data.model_dump())
+    table = Table(restaurant_id=current_user.restaurant_id, **table_data.model_dump())
     db.add(table)
     db.commit()
     db.refresh(table)
@@ -83,10 +89,10 @@ def update_table(
     table_id: int,
     table_data: TableUpdate,
     db: Session = Depends(get_db),
-    current_user: User = Depends(require_manager)
+    current_user: User = Depends(require_service)
 ):
-    """Update table (manager and above)"""
-    table = db.query(Table).filter(Table.id == table_id).first()
+    """Update table (service roles and above)"""
+    table = db.query(Table).filter(Table.id == table_id, Table.restaurant_id == current_user.restaurant_id).first()
     if not table:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
@@ -99,6 +105,7 @@ def update_table(
     if "table_number" in update_data:
         existing = db.query(Table).filter(
             Table.table_number == update_data["table_number"],
+            Table.restaurant_id == current_user.restaurant_id,
             Table.id != table_id
         ).first()
         if existing:
@@ -119,10 +126,10 @@ def update_table(
 def delete_table(
     table_id: int,
     db: Session = Depends(get_db),
-    current_user: User = Depends(require_manager)
+    current_user: User = Depends(require_service)
 ):
-    """Delete table (manager and above)"""
-    table = db.query(Table).filter(Table.id == table_id).first()
+    """Delete table (service roles and above)"""
+    table = db.query(Table).filter(Table.id == table_id, Table.restaurant_id == current_user.restaurant_id).first()
     if not table:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
@@ -148,7 +155,7 @@ def update_table_status(
     current_user: User = Depends(require_staff)
 ):
     """Update table status"""
-    table = db.query(Table).filter(Table.id == table_id).first()
+    table = db.query(Table).filter(Table.id == table_id, Table.restaurant_id == current_user.restaurant_id).first()
     if not table:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,

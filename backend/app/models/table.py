@@ -1,7 +1,7 @@
 """
 Table management model
 """
-from sqlalchemy import Column, Integer, String, Enum, DateTime, Text
+from sqlalchemy import Column, Integer, String, Enum, DateTime, Text, ForeignKey
 from sqlalchemy.orm import relationship
 from datetime import datetime
 import enum
@@ -21,6 +21,7 @@ class Table(Base):
     __tablename__ = "tables"
     
     id = Column(Integer, primary_key=True, index=True)
+    restaurant_id = Column(Integer, ForeignKey("restaurants.id"), nullable=False, index=True)
     table_number = Column(String(20), unique=True, nullable=False)
     capacity = Column(Integer, default=4)
     status = Column(Enum(TableStatus), default=TableStatus.AVAILABLE)

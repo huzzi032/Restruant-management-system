@@ -23,35 +23,8 @@ def get_users(
     current_user: User = Depends(require_manager)
 ):
     """Get list of users (manager and above)"""
-    users = AuthService.get_users(db, skip=skip, limit=limit, role=role)
+    users = AuthService.get_users(db, current_user.restaurant_id, skip=skip, limit=limit, role=role)
     return [user.to_dict() for user in users]
-
-
-@router.get("/{user_id}", response_model=UserResponse)
-def get_user(
-    user_id: int,
-    db: Session = Depends(get_db),
-    current_user: User = Depends(require_manager)
-):
-    """Get user by ID"""
-    user = AuthService.get_user_by_id(db, user_id)
-    if not user:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail="User not found"
-        )
-    return user.to_dict()
-
-
-@router.post("/", response_model=UserResponse)
-def create_user(
-    user_data: UserCreate,
-    db: Session = Depends(get_db),
-    current_user: User = Depends(require_admin)
-):
-    """Create new user (admin only)"""
-    user = AuthService.create_user(db, user_data)
-    return user.to_dict()
 
 
 @router.post("/bulk", response_model=BulkUserCreateResponse)
@@ -61,11 +34,38 @@ def create_bulk_users(
     current_user: User = Depends(require_admin)
 ):
     """Create multiple role portals with a shared password (admin only)."""
-    created_users, skipped_usernames = AuthService.create_users_in_bulk(db, bulk_data)
+    created_users, skipped_usernames = AuthService.create_users_in_bulk(db, bulk_data, current_user.restaurant_id)
     return {
         "created_users": [user.to_dict() for user in created_users],
         "skipped_usernames": skipped_usernames,
     }
+
+
+@router.post("/", response_model=UserResponse)
+def create_user(
+    user_data: UserCreate,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(require_admin)
+):
+    """Create new user (admin only)"""
+    user = AuthService.create_user(db, user_data, current_user.restaurant_id)
+    return user.to_dict()
+
+
+@router.get("/{user_id}", response_model=UserResponse)
+def get_user(
+    user_id: int,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(require_manager)
+):
+    """Get user by ID"""
+    user = AuthService.get_user_by_id(db, user_id, current_user.restaurant_id)
+    if not user:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="User not found"
+        )
+    return user.to_dict()
 
 
 @router.put("/{user_id}", response_model=UserResponse)
@@ -76,7 +76,7 @@ def update_user(
     current_user: User = Depends(require_admin)
 ):
     """Update user (admin only)"""
-    user = AuthService.update_user(db, user_id, user_data)
+    user = AuthService.update_user(db, user_id, user_data, current_user.restaurant_id)
     return user.to_dict()
 
 
@@ -87,5 +87,5 @@ def delete_user(
     current_user: User = Depends(require_admin)
 ):
     """Delete (deactivate) user (admin only)"""
-    AuthService.delete_user(db, user_id)
+    AuthService.delete_user(db, user_id, current_user.restaurant_id)
     return {"message": "User deactivated successfully"}

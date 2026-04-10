@@ -41,6 +41,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     try {
       setIsLoading(true);
       const response: AuthResponse = await authService.login({
+        restaurant_code: credentials.restaurant_code?.trim().toLowerCase() || undefined,
         username: credentials.username.trim().toLowerCase(),
         password: credentials.password,
       });

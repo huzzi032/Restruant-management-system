@@ -1,6 +1,9 @@
 // User Types
 export interface User {
   id: number;
+  restaurant_id: number;
+  restaurant_name?: string;
+  restaurant_code?: string;
   username: string;
   email?: string;
   full_name: string;
@@ -11,8 +14,24 @@ export interface User {
 }
 
 export interface LoginCredentials {
+  restaurant_code?: string;
   username: string;
   password: string;
+}
+
+export interface RestaurantSignupPayload {
+  restaurant_name: string;
+  admin_full_name: string;
+  admin_username: string;
+  admin_email?: string;
+  password: string;
+}
+
+export interface RestaurantSignupResponse {
+  restaurant_id: number;
+  restaurant_name: string;
+  restaurant_code: string;
+  admin_user: User;
 }
 
 export interface AuthResponse {

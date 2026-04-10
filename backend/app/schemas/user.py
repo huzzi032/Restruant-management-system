@@ -39,6 +39,9 @@ class BulkUserCreate(BaseModel):
 
 class UserResponse(UserBase):
     id: int
+    restaurant_id: int
+    restaurant_name: Optional[str] = None
+    restaurant_code: Optional[str] = None
     created_at: Optional[datetime] = None
     last_login: Optional[datetime] = None
     
@@ -52,8 +55,24 @@ class BulkUserCreateResponse(BaseModel):
 
 
 class UserLogin(BaseModel):
+    restaurant_code: Optional[str] = None
     username: str
     password: str
+
+
+class RestaurantSignup(BaseModel):
+    restaurant_name: str = Field(..., min_length=2, max_length=120)
+    admin_full_name: str = Field(..., min_length=2, max_length=100)
+    admin_username: str = Field(..., min_length=3, max_length=50)
+    admin_email: Optional[EmailStr] = None
+    password: str = Field(..., min_length=6)
+
+
+class RestaurantSignupResponse(BaseModel):
+    restaurant_id: int
+    restaurant_name: str
+    restaurant_code: str
+    admin_user: UserResponse
 
 
 class Token(BaseModel):

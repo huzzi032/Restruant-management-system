@@ -2,6 +2,7 @@
 Database models for Restaurant Management System
 """
 from app.models.user import User
+from app.models.restaurant import Restaurant
 from app.models.menu import Category, MenuItem, MenuItemIngredient
 from app.models.order import Order, OrderItem
 from app.models.table import Table
@@ -12,6 +13,7 @@ from app.models.payment import Payment
 
 __all__ = [
     "User",
+    "Restaurant",
     "Category",
     "MenuItem",
     "MenuItemIngredient",

@@ -44,6 +44,7 @@ export default function SettingsPage() {
     currency: 'PKR',
   });
   const [lastBulkResult, setLastBulkResult] = useState<BulkUserCreateResponse | null>(null);
+  const [lastSharedPassword, setLastSharedPassword] = useState('');
 
   const handleSave = () => {
     toast.success('Settings saved successfully!');
@@ -114,6 +115,8 @@ export default function SettingsPage() {
       toast.error('Password must be at least 6 characters');
       return;
     }
+
+    setLastSharedPassword(bulkForm.shared_password);
 
     bulkCreateMutation.mutate({
       role: bulkForm.role as 'admin' | 'manager' | 'waiter' | 'chef' | 'cashier',
@@ -218,7 +221,7 @@ export default function SettingsPage() {
               </CardDescription>
             </CardHeader>
             <CardContent className="space-y-4">
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div className="grid grid-cols-1 gap-4">
                 <div className="space-y-2">
                   <Label>Tax Rate (%)</Label>
                   <Input
@@ -231,14 +234,6 @@ export default function SettingsPage() {
                       const percentage = Number(e.target.value || '0');
                       setBusinessForm((prev) => ({ ...prev, tax_rate: String(percentage / 100) }));
                     }}
-                  />
-                </div>
-                <div className="space-y-2">
-                  <Label>Currency</Label>
-                  <Input
-                    placeholder="PKR"
-                    value={businessForm.currency}
-                    onChange={(e) => setBusinessForm((prev) => ({ ...prev, currency: e.target.value }))}
                   />
                 </div>
               </div>
@@ -469,14 +464,16 @@ export default function SettingsPage() {
                   <div className="rounded-md border p-3 space-y-3">
                     <p className="text-sm font-medium">New Portal Credentials</p>
                     <p className="text-xs text-muted-foreground">
-                      Use these usernames with your shared password to login.
+                      Use these exact credentials for staff login with your restaurant portal code.
                     </p>
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-2 text-sm">
                       {lastBulkResult.created_users.map((staff) => (
-                        <div key={staff.id} className="rounded-md bg-muted/50 p-2 flex items-center justify-between gap-2">
-                          <div className="min-w-0">
+                        <div key={staff.id} className="rounded-md bg-muted/50 p-3 flex items-center justify-between gap-3">
+                          <div className="min-w-0 space-y-1">
                             <p className="font-medium truncate">{staff.full_name}</p>
                             <p className="text-muted-foreground truncate">@{staff.username}</p>
+                            <p className="text-xs text-muted-foreground">ID: {staff.id}</p>
+                            <p className="text-xs text-muted-foreground">Password: {lastSharedPassword || bulkForm.shared_password}</p>
                           </div>
                           <Badge variant="outline" className="capitalize shrink-0">{staff.role}</Badge>
                         </div>

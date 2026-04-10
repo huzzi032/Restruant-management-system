@@ -60,8 +60,8 @@ function Sidebar({ className, onNavigate }: { className?: string; onNavigate?: (
             <Utensils className="h-5 w-5 text-white" />
           </div>
           <div>
-            <h1 className="font-bold text-lg leading-tight">Restaurant</h1>
-            <p className="text-xs text-muted-foreground">Management System</p>
+            <h1 className="font-bold text-lg leading-tight line-clamp-1">{user?.restaurant_name || 'Servify AI'}</h1>
+            <p className="text-xs text-muted-foreground line-clamp-1">{user?.restaurant_code || 'restaurant portal'}</p>
           </div>
         </div>
       </div>

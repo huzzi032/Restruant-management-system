@@ -33,16 +33,28 @@ def get_categories(
     current_user: User = Depends(get_current_user)
 ):
     """Get all categories"""
-    categories = MenuService.get_categories(db, include_inactive=include_inactive)
+    categories = MenuService.get_categories(db, current_user.restaurant_id, include_inactive=include_inactive)
     return [cat.to_dict() for cat in categories]
 
 
 @router.get("/public/categories", response_model=List[CategoryResponse])
 def get_public_categories(
+    restaurant_code: Optional[str] = Query(None),
     db: Session = Depends(get_db)
 ):
     """Public categories endpoint for customer menu."""
-    categories = MenuService.get_categories(db, include_inactive=False)
+    from app.models.restaurant import Restaurant
+
+    restaurant_id = None
+    if restaurant_code:
+        restaurant = db.query(Restaurant).filter(Restaurant.code == restaurant_code.strip().lower()).first()
+        restaurant_id = restaurant.id if restaurant else None
+
+    if restaurant_id is None:
+        restaurant = db.query(Restaurant).filter(Restaurant.code == "default").first()
+        restaurant_id = restaurant.id if restaurant else 1
+
+    categories = MenuService.get_categories(db, restaurant_id, include_inactive=False)
     return [cat.to_dict() for cat in categories]
 
 
@@ -53,7 +65,7 @@ def get_category(
     current_user: User = Depends(get_current_user)
 ):
     """Get category by ID"""
-    category = MenuService.get_category_by_id(db, category_id)
+    category = MenuService.get_category_by_id(db, category_id, current_user.restaurant_id)
     if not category:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
@@ -69,7 +81,7 @@ def create_category(
     current_user: User = Depends(require_manager)
 ):
     """Create new category (manager and above)"""
-    category = MenuService.create_category(db, category_data)
+    category = MenuService.create_category(db, category_data, current_user.restaurant_id)
     return category.to_dict()
 
 
@@ -81,7 +93,7 @@ def update_category(
     current_user: User = Depends(require_manager)
 ):
     """Update category (manager and above)"""
-    category = MenuService.update_category(db, category_id, category_data)
+    category = MenuService.update_category(db, category_id, category_data, current_user.restaurant_id)
     return category.to_dict()
 
 
@@ -92,7 +104,7 @@ def delete_category(
     current_user: User = Depends(require_manager)
 ):
     """Delete category (manager and above)"""
-    MenuService.delete_category(db, category_id)
+    MenuService.delete_category(db, category_id, current_user.restaurant_id)
     return {"message": "Category deleted successfully"}
 
 
@@ -109,6 +121,7 @@ def get_menu_items(
     """Get menu items with filtering"""
     items = MenuService.get_menu_items(
         db,
+        current_user.restaurant_id,
         category_id=category_id,
         available_only=available_only,
         search=search
@@ -120,11 +133,24 @@ def get_menu_items(
 def get_public_menu_items(
     category_id: Optional[int] = Query(None),
     search: Optional[str] = Query(None),
+    restaurant_code: Optional[str] = Query(None),
     db: Session = Depends(get_db)
 ):
     """Public menu endpoint for customer QR menu."""
+    from app.models.restaurant import Restaurant
+
+    restaurant_id = None
+    if restaurant_code:
+        restaurant = db.query(Restaurant).filter(Restaurant.code == restaurant_code.strip().lower()).first()
+        restaurant_id = restaurant.id if restaurant else None
+
+    if restaurant_id is None:
+        restaurant = db.query(Restaurant).filter(Restaurant.code == "default").first()
+        restaurant_id = restaurant.id if restaurant else 1
+
     items = MenuService.get_menu_items(
         db,
+        restaurant_id,
         category_id=category_id,
         available_only=True,
         search=search,
@@ -216,7 +242,7 @@ def get_menu_item(
     current_user: User = Depends(get_current_user)
 ):
     """Get menu item by ID"""
-    item = MenuService.get_menu_item_by_id(db, item_id)
+    item = MenuService.get_menu_item_by_id(db, item_id, current_user.restaurant_id)
     if not item:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
@@ -232,7 +258,7 @@ def create_menu_item(
     current_user: User = Depends(require_manager)
 ):
     """Create new menu item (manager and above)"""
-    item = MenuService.create_menu_item(db, item_data)
+    item = MenuService.create_menu_item(db, item_data, current_user.restaurant_id)
     return item.to_dict(include_ingredients=True)
 
 
@@ -244,7 +270,7 @@ def update_menu_item(
     current_user: User = Depends(require_manager)
 ):
     """Update menu item (manager and above)"""
-    item = MenuService.update_menu_item(db, item_id, item_data)
+    item = MenuService.update_menu_item(db, item_id, item_data, current_user.restaurant_id)
     return item.to_dict(include_ingredients=True)
 
 
@@ -255,7 +281,7 @@ def delete_menu_item(
     current_user: User = Depends(require_manager)
 ):
     """Delete menu item (manager and above)"""
-    MenuService.delete_menu_item(db, item_id)
+    MenuService.delete_menu_item(db, item_id, current_user.restaurant_id)
     return {"message": "Menu item deleted successfully"}
 
 
@@ -266,7 +292,7 @@ def toggle_availability(
     current_user: User = Depends(require_staff)
 ):
     """Toggle menu item availability"""
-    item = MenuService.toggle_availability(db, item_id)
+    item = MenuService.toggle_availability(db, item_id, current_user.restaurant_id)
     return {
         "message": f"Item is now {'available' if item.is_available else 'unavailable'}",
         "is_available": item.is_available
@@ -281,5 +307,5 @@ def get_top_selling_items(
     current_user: User = Depends(require_manager)
 ):
     """Get top selling items"""
-    items = MenuService.get_top_selling_items(db, limit=limit, days=days)
+    items = MenuService.get_top_selling_items(db, current_user.restaurant_id, limit=limit, days=days)
     return {"top_items": items}

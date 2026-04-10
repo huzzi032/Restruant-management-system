@@ -53,7 +53,7 @@ def get_kitchen_orders(
     current_user: User = Depends(require_kitchen)
 ):
     """Get orders for kitchen display (chef and above)"""
-    orders = OrderService.get_kitchen_orders(db)
+    orders = OrderService.get_kitchen_orders(db, current_user.restaurant_id)
     return [order.to_dict(include_items=True) for order in orders]
 
 
@@ -63,7 +63,7 @@ def get_pending_orders(
     current_user: User = Depends(require_kitchen)
 ):
     """Get pending orders waiting to be prepared"""
-    orders = OrderService.get_orders(db, status=OrderStatus.IN_KITCHEN)
+    orders = OrderService.get_orders(db, current_user.restaurant_id, status=OrderStatus.IN_KITCHEN)
     return [order.to_dict(include_items=True) for order in orders]
 
 
@@ -73,7 +73,7 @@ def get_cooking_orders(
     current_user: User = Depends(require_kitchen)
 ):
     """Get orders currently being cooked"""
-    orders = OrderService.get_orders(db, status=OrderStatus.COOKING)
+    orders = OrderService.get_orders(db, current_user.restaurant_id, status=OrderStatus.COOKING)
     return [order.to_dict(include_items=True) for order in orders]
 
 
@@ -83,7 +83,7 @@ def get_ready_orders(
     current_user: User = Depends(require_service)
 ):
     """Get orders ready for serving"""
-    orders = OrderService.get_orders(db, status=OrderStatus.READY)
+    orders = OrderService.get_orders(db, current_user.restaurant_id, status=OrderStatus.READY)
     return [order.to_dict(include_items=True) for order in orders]
 
 
@@ -95,7 +95,7 @@ def start_cooking(
 ):
     """Mark order as being cooked (chef and above)"""
     status_update = OrderStatusUpdate(status=OrderStatus.COOKING)
-    order = OrderService.update_order_status(db, order_id, status_update, current_user.id)
+    order = OrderService.update_order_status(db, order_id, status_update, current_user.id, current_user.restaurant_id)
     
     # Broadcast to kitchen displays
     _broadcast_safe({
@@ -115,7 +115,7 @@ def mark_order_ready(
 ):
     """Mark order as ready for serving (chef and above)"""
     status_update = OrderStatusUpdate(status=OrderStatus.READY)
-    order = OrderService.update_order_status(db, order_id, status_update, current_user.id)
+    order = OrderService.update_order_status(db, order_id, status_update, current_user.id, current_user.restaurant_id)
     
     # Broadcast to kitchen displays
     _broadcast_safe({
@@ -134,7 +134,7 @@ def pickup_ready_order(
     current_user: User = Depends(require_service)
 ):
     """Mark ready order as picked up by waiter/service staff."""
-    order = OrderService.mark_order_picked_up(db, order_id, current_user.id)
+    order = OrderService.mark_order_picked_up(db, order_id, current_user.id, current_user.restaurant_id)
 
     _broadcast_safe({
         "type": "order_status_update",
@@ -156,9 +156,18 @@ def get_kitchen_stats(
     from app.models.order import Order
     
     # Count orders by status
-    pending_count = db.query(Order).filter(Order.status == OrderStatus.IN_KITCHEN).count()
-    cooking_count = db.query(Order).filter(Order.status == OrderStatus.COOKING).count()
-    ready_count = db.query(Order).filter(Order.status == OrderStatus.READY).count()
+    pending_count = db.query(Order).filter(
+        Order.restaurant_id == current_user.restaurant_id,
+        Order.status == OrderStatus.IN_KITCHEN,
+    ).count()
+    cooking_count = db.query(Order).filter(
+        Order.restaurant_id == current_user.restaurant_id,
+        Order.status == OrderStatus.COOKING,
+    ).count()
+    ready_count = db.query(Order).filter(
+        Order.restaurant_id == current_user.restaurant_id,
+        Order.status == OrderStatus.READY,
+    ).count()
     
     # Average preparation time (last 24 hours)
     from datetime import datetime, timedelta
@@ -169,6 +178,7 @@ def get_kitchen_stats(
             func.julianday(Order.ready_at) - func.julianday(Order.kitchen_started_at)
         ) * 24 * 60
     ).filter(
+        Order.restaurant_id == current_user.restaurant_id,
         Order.ready_at.isnot(None),
         Order.kitchen_started_at.isnot(None),
         Order.ready_at >= yesterday

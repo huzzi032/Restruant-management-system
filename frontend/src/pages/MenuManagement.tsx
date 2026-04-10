@@ -39,6 +39,7 @@ export default function MenuManagement() {
   const [search, setSearch] = useState('');
   const [selectedCategory, setSelectedCategory] = useState<number | null>(null);
   const [isAddItemOpen, setIsAddItemOpen] = useState(false);
+  const [isEditItemOpen, setIsEditItemOpen] = useState(false);
   const [isAddCategoryOpen, setIsAddCategoryOpen] = useState(false);
   const [itemForm, setItemForm] = useState({
     name: '',
@@ -52,6 +53,19 @@ export default function MenuManagement() {
     is_spicy: false,
   });
   const [itemImageFile, setItemImageFile] = useState<File | null>(null);
+  const [editForm, setEditForm] = useState({
+    id: 0,
+    name: '',
+    description: '',
+    price: '',
+    cost: '',
+    category_id: '',
+    preparation_time: '15',
+    image_url: '',
+    is_vegetarian: false,
+    is_spicy: false,
+    is_available: true,
+  });
   const [categoryForm, setCategoryForm] = useState({
     name: '',
     description: '',
@@ -118,6 +132,16 @@ export default function MenuManagement() {
     onError: () => toast.error('Failed to delete item'),
   });
 
+  const updateItemMutation = useMutation({
+    mutationFn: ({ id, data }: { id: number; data: Partial<any> }) => menuService.updateMenuItem(id, data),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['menu-items'] });
+      setIsEditItemOpen(false);
+      toast.success('Menu item updated successfully');
+    },
+    onError: (error: any) => toast.error(error.response?.data?.detail || 'Failed to update item'),
+  });
+
   const toggleMutation = useMutation({
     mutationFn: menuService.toggleAvailability,
     onSuccess: () => {
@@ -168,6 +192,29 @@ export default function MenuManagement() {
       });
     })().catch(() => {
       toast.error('Failed to upload image');
+    });
+  };
+
+  const handleEditItem = () => {
+    if (!editForm.id || !editForm.name.trim() || !editForm.price || !editForm.category_id) {
+      toast.error('Name, price, and category are required');
+      return;
+    }
+
+    updateItemMutation.mutate({
+      id: editForm.id,
+      data: {
+        name: editForm.name.trim(),
+        description: editForm.description.trim() || undefined,
+        price: Number(editForm.price),
+        cost: Number(editForm.cost || '0'),
+        category_id: Number(editForm.category_id),
+        preparation_time: Number(editForm.preparation_time || '15'),
+        image_url: editForm.image_url.trim() || undefined,
+        is_available: editForm.is_available,
+        is_vegetarian: editForm.is_vegetarian,
+        is_spicy: editForm.is_spicy,
+      },
     });
   };
 
@@ -332,6 +379,72 @@ export default function MenuManagement() {
               </div>
             </DialogContent>
           </Dialog>
+
+          <Dialog open={isEditItemOpen} onOpenChange={setIsEditItemOpen}>
+            <DialogContent className="max-w-2xl">
+              <DialogHeader>
+                <DialogTitle>Edit Menu Item</DialogTitle>
+              </DialogHeader>
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div className="space-y-2 md:col-span-2">
+                  <Label>Name</Label>
+                  <Input value={editForm.name} onChange={(e) => setEditForm((prev) => ({ ...prev, name: e.target.value }))} />
+                </div>
+                <div className="space-y-2 md:col-span-2">
+                  <Label>Description</Label>
+                  <Input value={editForm.description} onChange={(e) => setEditForm((prev) => ({ ...prev, description: e.target.value }))} />
+                </div>
+                <div className="space-y-2">
+                  <Label>Price</Label>
+                  <Input type="number" min="0" step="0.01" value={editForm.price} onChange={(e) => setEditForm((prev) => ({ ...prev, price: e.target.value }))} />
+                </div>
+                <div className="space-y-2">
+                  <Label>Cost</Label>
+                  <Input type="number" min="0" step="0.01" value={editForm.cost} onChange={(e) => setEditForm((prev) => ({ ...prev, cost: e.target.value }))} />
+                </div>
+                <div className="space-y-2">
+                  <Label>Category</Label>
+                  <select
+                    className="w-full h-10 rounded-md border bg-background px-3"
+                    value={editForm.category_id}
+                    onChange={(e) => setEditForm((prev) => ({ ...prev, category_id: e.target.value }))}
+                  >
+                    <option value="">Select category</option>
+                    {categories?.map((category) => (
+                      <option key={category.id} value={category.id}>{category.name}</option>
+                    ))}
+                  </select>
+                </div>
+                <div className="space-y-2">
+                  <Label>Prep Time (minutes)</Label>
+                  <Input type="number" min="1" value={editForm.preparation_time} onChange={(e) => setEditForm((prev) => ({ ...prev, preparation_time: e.target.value }))} />
+                </div>
+                <div className="space-y-2 md:col-span-2">
+                  <Label>Image URL</Label>
+                  <Input value={editForm.image_url} onChange={(e) => setEditForm((prev) => ({ ...prev, image_url: e.target.value }))} placeholder="https://..." />
+                </div>
+                <div className="md:col-span-2 flex gap-6">
+                  <label className="flex items-center gap-2 text-sm">
+                    <input type="checkbox" checked={editForm.is_available} onChange={(e) => setEditForm((prev) => ({ ...prev, is_available: e.target.checked }))} />
+                    Available
+                  </label>
+                  <label className="flex items-center gap-2 text-sm">
+                    <input type="checkbox" checked={editForm.is_vegetarian} onChange={(e) => setEditForm((prev) => ({ ...prev, is_vegetarian: e.target.checked }))} />
+                    Vegetarian
+                  </label>
+                  <label className="flex items-center gap-2 text-sm">
+                    <input type="checkbox" checked={editForm.is_spicy} onChange={(e) => setEditForm((prev) => ({ ...prev, is_spicy: e.target.checked }))} />
+                    Spicy
+                  </label>
+                </div>
+                <div className="md:col-span-2">
+                  <Button className="w-full" onClick={handleEditItem} disabled={updateItemMutation.isPending}>
+                    {updateItemMutation.isPending ? 'Saving...' : 'Save Changes'}
+                  </Button>
+                </div>
+              </div>
+            </DialogContent>
+          </Dialog>
         </div>
       </div>
 
@@ -459,13 +572,36 @@ export default function MenuManagement() {
                         </TableCell>
                         <TableCell className="text-right">
                           <div className="flex justify-end gap-2">
-                            <Button variant="ghost" size="icon">
+                            <Button
+                              variant="ghost"
+                              size="icon"
+                              onClick={() => {
+                                setEditForm({
+                                  id: item.id,
+                                  name: item.name,
+                                  description: item.description || '',
+                                  price: String(item.price),
+                                  cost: String(item.cost),
+                                  category_id: String(item.category_id),
+                                  preparation_time: String(item.preparation_time),
+                                  image_url: item.image_url || '',
+                                  is_vegetarian: item.is_vegetarian,
+                                  is_spicy: item.is_spicy,
+                                  is_available: item.is_available,
+                                });
+                                setIsEditItemOpen(true);
+                              }}
+                            >
                               <Edit2 className="h-4 w-4" />
                             </Button>
                             <Button
                               variant="ghost"
                               size="icon"
-                              onClick={() => deleteMutation.mutate(item.id)}
+                              onClick={() => {
+                                if (window.confirm(`Delete ${item.name}? This action cannot be undone.`)) {
+                                  deleteMutation.mutate(item.id);
+                                }
+                              }}
                             >
                               <Trash2 className="h-4 w-4" />
                             </Button>
@@ -524,12 +660,12 @@ export default function MenuManagement() {
               ) : (
                 <div className="space-y-3">
                   {topSelling.top_items.map((item: any, index: number) => (
-                    <div key={`${item.menu_item_id}-${index}`} className="flex items-center justify-between rounded-lg border p-3">
+                    <div key={`${item.id}-${index}`} className="flex items-center justify-between rounded-lg border p-3">
                       <div>
-                        <p className="font-medium">{index + 1}. {item.item_name}</p>
-                        <p className="text-xs text-muted-foreground">Sold: {item.quantity_sold}</p>
+                        <p className="font-medium">{index + 1}. {item.name}</p>
+                        <p className="text-xs text-muted-foreground">Sold: {item.total_sold}</p>
                       </div>
-                      <Badge variant="secondary">{Number(item.revenue || 0).toFixed(2)}</Badge>
+                      <Badge variant="secondary">{Number(item.total_revenue || 0).toFixed(2)}</Badge>
                     </div>
                   ))}
                 </div>

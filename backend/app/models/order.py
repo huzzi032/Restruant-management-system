@@ -30,6 +30,7 @@ class Order(Base):
     __tablename__ = "orders"
     
     id = Column(Integer, primary_key=True, index=True)
+    restaurant_id = Column(Integer, ForeignKey("restaurants.id"), nullable=False, index=True)
     order_number = Column(String(50), unique=True, nullable=False)
     
     # Order type

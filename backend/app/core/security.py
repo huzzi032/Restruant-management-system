@@ -73,9 +73,14 @@ def get_current_user(
     user_id: str = payload.get("sub")
     if user_id is None:
         raise credentials_exception
+
+    token_restaurant_id = payload.get("rid")
     
     user = db.query(User).filter(User.id == int(user_id)).first()
     if user is None:
+        raise credentials_exception
+
+    if token_restaurant_id is not None and str(user.restaurant_id) != str(token_restaurant_id):
         raise credentials_exception
     
     if not user.is_active:

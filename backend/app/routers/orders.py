@@ -68,6 +68,7 @@ def get_orders(
     """Get orders with filtering"""
     orders = OrderService.get_orders(
         db,
+        current_user.restaurant_id,
         status=status,
         order_type=order_type,
         table_id=table_id,
@@ -85,7 +86,7 @@ def get_active_orders(
     current_user: User = Depends(require_staff)
 ):
     """Get all active orders"""
-    orders = OrderService.get_active_orders(db)
+    orders = OrderService.get_active_orders(db, current_user.restaurant_id)
     return [order.to_dict(include_items=True) for order in orders]
 
 
@@ -96,7 +97,7 @@ def get_order(
     current_user: User = Depends(require_staff)
 ):
     """Get order by ID"""
-    order = OrderService.get_order_by_id(db, order_id)
+    order = OrderService.get_order_by_id(db, order_id, current_user.restaurant_id)
     if not order:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
@@ -112,7 +113,7 @@ def get_order_by_number(
     current_user: User = Depends(require_staff)
 ):
     """Get order by order number"""
-    order = OrderService.get_order_by_number(db, order_number)
+    order = OrderService.get_order_by_number(db, order_number, current_user.restaurant_id)
     if not order:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
@@ -129,7 +130,7 @@ def create_order(
     current_user: User = Depends(require_staff)
 ):
     """Create new order"""
-    order = OrderService.create_order(db, order_data, current_user.id)
+    order = OrderService.create_order(db, order_data, current_user.id, current_user.restaurant_id)
 
     # Broadcast to connected clients when loop is available.
     _broadcast_safe({
@@ -148,7 +149,7 @@ def update_order(
     current_user: User = Depends(require_staff)
 ):
     """Update order"""
-    order = OrderService.update_order(db, order_id, order_data, current_user.id)
+    order = OrderService.update_order(db, order_id, order_data, current_user.id, current_user.restaurant_id)
     return order.to_dict(include_items=True)
 
 
@@ -160,7 +161,7 @@ def update_order_status(
     current_user: User = Depends(require_staff)
 ):
     """Update order status"""
-    order = OrderService.update_order_status(db, order_id, status_update, current_user.id)
+    order = OrderService.update_order_status(db, order_id, status_update, current_user.id, current_user.restaurant_id)
 
     # Broadcast status update
     _broadcast_safe({
@@ -180,7 +181,7 @@ def add_order_item(
     current_user: User = Depends(require_staff)
 ):
     """Add item to order"""
-    order = OrderService.add_order_item(db, order_id, item_data, current_user.id)
+    order = OrderService.add_order_item(db, order_id, item_data, current_user.id, current_user.restaurant_id)
     return order.to_dict(include_items=True)
 
 
@@ -192,7 +193,7 @@ def remove_order_item(
     current_user: User = Depends(require_staff)
 ):
     """Remove item from order"""
-    order = OrderService.remove_order_item(db, order_id, item_id, current_user.id)
+    order = OrderService.remove_order_item(db, order_id, item_id, current_user.id, current_user.restaurant_id)
     return order.to_dict(include_items=True)
 
 

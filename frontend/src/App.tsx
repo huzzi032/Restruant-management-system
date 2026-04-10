@@ -10,6 +10,8 @@ import { Layout } from './components/Layout';
 import { getRoleHomePath } from './lib/role-home';
 
 // Pages
+const Home = lazy(() => import('./pages/Home'));
+const Contact = lazy(() => import('./pages/Contact'));
 const Login = lazy(() => import('./pages/Login'));
 const Dashboard = lazy(() => import('./pages/Dashboard'));
 const MenuManagement = lazy(() => import('./pages/MenuManagement'));
@@ -46,27 +48,48 @@ function App() {
             <Suspense fallback={<div className="min-h-screen grid place-items-center text-muted-foreground">Loading...</div>}>
               <Routes>
                 {/* Public Routes */}
+                <Route path="/" element={<Home />} />
+                <Route path="/contact" element={<Contact />} />
                 <Route path="/login" element={<Login />} />
                 <Route path="/menu/public" element={<PublicMenu />} />
                 
                 {/* Protected Routes */}
                 <Route element={<ProtectedRoute />}>
                   <Route element={<Layout />}>
-                    <Route path="/" element={<RoleHomeRedirect />} />
-                    <Route path="/dashboard" element={<Dashboard />} />
-                    <Route path="/menu" element={<MenuManagement />} />
-                    <Route path="/orders" element={<OrderTaking />} />
-                    <Route path="/kitchen" element={<KitchenDisplay />} />
-                    <Route path="/billing" element={<Billing />} />
-                    <Route path="/inventory" element={<Inventory />} />
-                    <Route path="/employees" element={<Employees />} />
-                    <Route path="/reports" element={<Reports />} />
-                    <Route path="/settings" element={<Settings />} />
+                    <Route path="/portal" element={<RoleHomeRedirect />} />
+
+                    <Route element={<ProtectedRoute allowedRoles={['admin', 'manager', 'waiter', 'chef', 'cashier']} />}>
+                      <Route path="/dashboard" element={<Dashboard />} />
+                    </Route>
+                    <Route element={<ProtectedRoute allowedRoles={['admin', 'manager', 'chef']} />}>
+                      <Route path="/menu" element={<MenuManagement />} />
+                    </Route>
+                    <Route element={<ProtectedRoute allowedRoles={['admin', 'manager', 'waiter']} />}>
+                      <Route path="/orders" element={<OrderTaking />} />
+                    </Route>
+                    <Route element={<ProtectedRoute allowedRoles={['admin', 'manager', 'chef']} />}>
+                      <Route path="/kitchen" element={<KitchenDisplay />} />
+                    </Route>
+                    <Route element={<ProtectedRoute allowedRoles={['admin', 'manager', 'cashier']} />}>
+                      <Route path="/billing" element={<Billing />} />
+                    </Route>
+                    <Route element={<ProtectedRoute allowedRoles={['admin', 'manager', 'chef']} />}>
+                      <Route path="/inventory" element={<Inventory />} />
+                    </Route>
+                    <Route element={<ProtectedRoute allowedRoles={['admin', 'manager']} />}>
+                      <Route path="/employees" element={<Employees />} />
+                    </Route>
+                    <Route element={<ProtectedRoute allowedRoles={['admin', 'manager']} />}>
+                      <Route path="/reports" element={<Reports />} />
+                    </Route>
+                    <Route element={<ProtectedRoute allowedRoles={['admin', 'manager']} />}>
+                      <Route path="/settings" element={<Settings />} />
+                    </Route>
                   </Route>
                 </Route>
                 
                 {/* Catch all */}
-                <Route path="*" element={<Navigate to="/login" replace />} />
+                <Route path="*" element={<Navigate to="/" replace />} />
               </Routes>
             </Suspense>
             <Toaster position="top-right" richColors />
