@@ -13,6 +13,12 @@ import { getRoleHomePath } from './lib/role-home';
 const Home = lazy(() => import('./pages/Home'));
 const Contact = lazy(() => import('./pages/Contact'));
 const Login = lazy(() => import('./pages/Login'));
+const SignIn = lazy(() => import('./pages/SignIn'));
+const SignUp = lazy(() => import('./pages/SignUp'));
+const Features = lazy(() => import('./pages/Features'));
+const Pricing = lazy(() => import('./pages/Pricing'));
+const Privacy = lazy(() => import('./pages/Privacy'));
+const Terms = lazy(() => import('./pages/Terms'));
 const Dashboard = lazy(() => import('./pages/Dashboard'));
 const MenuManagement = lazy(() => import('./pages/MenuManagement'));
 const OrderTaking = lazy(() => import('./pages/OrderTaking'));
@@ -45,11 +51,23 @@ function App() {
       <ThemeProvider>
         <Router>
           <AuthProvider>
-            <Suspense fallback={<div className="min-h-screen grid place-items-center text-muted-foreground">Loading...</div>}>
+            <Suspense
+              fallback={
+                <div className="grid min-h-screen place-items-center bg-[#1A1A1A] font-sans text-sm text-white/50">
+                  Loading…
+                </div>
+              }
+            >
               <Routes>
                 {/* Public Routes */}
                 <Route path="/" element={<Home />} />
+                <Route path="/features" element={<Features />} />
+                <Route path="/pricing" element={<Pricing />} />
                 <Route path="/contact" element={<Contact />} />
+                <Route path="/privacy" element={<Privacy />} />
+                <Route path="/terms" element={<Terms />} />
+                <Route path="/signin" element={<SignIn />} />
+                <Route path="/signup" element={<SignUp />} />
                 <Route path="/login" element={<Login />} />
                 <Route path="/menu/public" element={<PublicMenu />} />
                 

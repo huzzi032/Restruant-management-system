@@ -65,7 +65,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     localStorage.removeItem('user');
     setUser(null);
     toast.info('Logged out successfully');
-    navigate('/login');
+    navigate('/signin');
   };
 
   const hasRole = (roles: string[]) => {

@@ -1,170 +1,241 @@
 import { Link } from 'react-router-dom';
 import { motion } from 'framer-motion';
-import { ArrowRight, Bot, Building2, ChartNoAxesCombined, ClipboardList, ReceiptText, ShieldCheck, Sparkles, Users } from 'lucide-react';
+import {
+  ArrowRight,
+  Bot,
+  Building2,
+  ChartNoAxesCombined,
+  ClipboardList,
+  Cpu,
+  ShieldCheck,
+  Sparkles,
+  Users,
+  Zap,
+} from 'lucide-react';
 import { Button } from '@/components/ui/button';
+import { MarketingShell } from '@/components/marketing/MarketingShell';
 
 const features = [
   {
-    title: 'Multi-Restaurant Isolation',
-    description: 'Each restaurant gets a unique portal code with fully separated data, users, menu, tables, and orders.',
-    icon: Building2,
-  },
-  {
-    title: 'Smart Daily Operations',
-    description: 'Order flow, kitchen sync, billing, and table management in one responsive workspace for every role.',
-    icon: ClipboardList,
-  },
-  {
-    title: 'Servify AI Insights',
-    description: 'Get instant business signals on demand, pricing opportunities, and service bottlenecks before rush hour.',
+    title: 'AI that runs operations',
+    description:
+      'Automate routine decisions, spot bottlenecks early, and get plain-language guidance tailored to your floor and kitchen.',
     icon: Bot,
+    accent: 'text-[#3B82F6]',
   },
   {
-    title: 'Growth Analytics',
-    description: 'Track sales trends, menu winners, and operational performance with clear reporting dashboards.',
+    title: 'Multi-restaurant isolation',
+    description:
+      'Each venue gets its own portal code, data, menu, and staff — ideal for groups and white-label operators.',
+    icon: Building2,
+    accent: 'text-[#FF6A47]',
+  },
+  {
+    title: 'Role-based workspace',
+    description:
+      'Waiters, chefs, cashiers, and managers see exactly what they need — fast handoffs, fewer mistakes.',
+    icon: Users,
+    accent: 'text-[#3B82F6]',
+  },
+  {
+    title: 'Live kitchen & billing',
+    description:
+      'Orders flow from table to kitchen to checkout with clear status, so guests wait less and turns improve.',
+    icon: ClipboardList,
+    accent: 'text-[#FF6A47]',
+  },
+  {
+    title: 'Inventory & waste control',
+    description:
+      'Track stock and usage so you trim waste and protect margin without spreadsheet chaos.',
+    icon: Zap,
+    accent: 'text-[#3B82F6]',
+  },
+  {
+    title: 'Growth analytics',
+    description:
+      'Dashboards and reports highlight what sells, when you peak, and where revenue leaks.',
     icon: ChartNoAxesCombined,
+    accent: 'text-[#FF6A47]',
   },
 ];
 
-const tour = [
-  {
-    step: '1. Create Restaurant Portal',
-    detail: 'Use Login > Restaurant Signup to create your own portal code and admin account.',
-  },
-  {
-    step: '2. Staff Portals',
-    detail: 'Admin goes to Settings > Staff Portals to create waiter, chef, cashier, and manager accounts.',
-  },
-  {
-    step: '3. Daily Operations',
-    detail: 'Waiter takes orders, Kitchen handles status flow, Cashier finalizes billing, Manager monitors reports.',
-  },
-  {
-    step: '4. Intelligence & Control',
-    detail: 'Use dashboards, reports, and Servify AI insights to improve service and profitability.',
-  },
-];
-
-const modules = [
-  { title: 'Order Taking', icon: ClipboardList, where: '/orders', forRole: 'Waiter, Admin, Manager' },
-  { title: 'Kitchen Display', icon: ReceiptText, where: '/kitchen', forRole: 'Chef, Admin, Manager' },
-  { title: 'Billing', icon: ChartNoAxesCombined, where: '/billing', forRole: 'Cashier, Admin, Manager' },
-  { title: 'Staff Management', icon: Users, where: '/settings', forRole: 'Admin (staff portals)' },
+const stats = [
+  { label: 'Operations in one stack', value: 'Orders → Kitchen → Pay' },
+  { label: 'Built for teams', value: 'Admin, Manager, Floor, Chef' },
+  { label: 'AI-ready', value: 'Insights on demand' },
 ];
 
 export default function Home() {
   return (
-    <div className="min-h-screen bg-[radial-gradient(circle_at_10%_10%,#f59e0b22_0,transparent_40%),radial-gradient(circle_at_80%_20%,#14b8a622_0,transparent_35%),linear-gradient(180deg,#fffaf3_0%,#ffffff_45%,#f8fafc_100%)] text-slate-900 flex flex-col">
-      <section className="max-w-6xl mx-auto w-full px-4 sm:px-6 lg:px-8 py-12 sm:py-16 lg:py-24 flex-1">
-        <motion.div initial={{ opacity: 0, y: 24 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.5 }} className="rounded-3xl border border-amber-100 bg-white/80 backdrop-blur-sm shadow-xl p-6 sm:p-10 lg:p-14">
-          <div className="inline-flex items-center gap-2 rounded-full bg-amber-100 text-amber-900 px-4 py-1.5 text-xs font-semibold tracking-wide uppercase">
-            <Sparkles className="h-3.5 w-3.5" />
-            Servify AI Platform
-          </div>
-
-          <h1 className="mt-5 text-4xl sm:text-5xl lg:text-6xl font-black leading-tight tracking-tight">
-            Run every restaurant branch with its own intelligent system.
-          </h1>
-          <p className="mt-5 max-w-3xl text-base sm:text-lg text-slate-600 leading-relaxed">
-            Servify AI helps restaurants launch their own secure portal, onboard staff, manage orders, menus, billing, and operations without data overlap.
-            Whether you run one outlet or many clients, each restaurant works independently with zero conflict.
-          </p>
-
-          <div className="mt-8 flex flex-wrap items-center gap-3">
-            <Button asChild size="lg" className="bg-amber-500 hover:bg-amber-600 text-slate-950 font-semibold">
-              <Link to="/login">
-                Login / Signup
-                <ArrowRight className="h-4 w-4 ml-1" />
-              </Link>
-            </Button>
-            <Button asChild size="lg" variant="outline" className="border-slate-300">
-              <Link to="/contact">Contact Us</Link>
-            </Button>
-          </div>
-        </motion.div>
-
-        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 sm:gap-6 mt-8 sm:mt-10">
-          {features.map((feature, index) => {
-            const Icon = feature.icon;
-            return (
-              <motion.div
-                key={feature.title}
-                initial={{ opacity: 0, y: 16 }}
-                animate={{ opacity: 1, y: 0 }}
-                transition={{ delay: 0.1 + index * 0.08 }}
-                className="rounded-2xl border bg-white/90 p-5 sm:p-6 hover:shadow-lg transition-shadow"
-              >
-                <div className="w-10 h-10 rounded-xl bg-slate-900 text-amber-300 grid place-items-center">
-                  <Icon className="h-5 w-5" />
-                </div>
-                <h3 className="mt-4 text-lg font-bold">{feature.title}</h3>
-                <p className="mt-2 text-sm text-slate-600 leading-relaxed">{feature.description}</p>
-              </motion.div>
-            );
-          })}
-        </div>
-
-        <div className="mt-8 rounded-2xl border border-emerald-200 bg-emerald-50 p-5 sm:p-6 flex items-start gap-3">
-          <ShieldCheck className="h-5 w-5 text-emerald-700 mt-0.5" />
-          <p className="text-sm sm:text-base text-emerald-900">
-            Built for role-based access: staff only sees what they are allowed to access, while admin and manager keep full operational control.
-          </p>
-        </div>
-
-        <div className="mt-10 grid grid-cols-1 lg:grid-cols-2 gap-6">
-          <div className="rounded-2xl border bg-white/90 p-6">
-            <h2 className="text-2xl font-bold">How To Use Servify AI</h2>
-            <div className="mt-4 space-y-3">
-              {tour.map((item) => (
-                <div key={item.step} className="rounded-xl border bg-slate-50 p-4">
-                  <p className="font-semibold text-slate-900">{item.step}</p>
-                  <p className="text-sm text-slate-600 mt-1">{item.detail}</p>
-                </div>
-              ))}
+    <MarketingShell>
+      <section className="relative overflow-hidden border-b border-white/10">
+        <div
+          className="pointer-events-none absolute inset-0 opacity-40"
+          style={{
+            background:
+              'radial-gradient(ellipse 80% 50% at 50% -20%, rgba(255,106,71,0.35), transparent), radial-gradient(ellipse 60% 40% at 100% 50%, rgba(59,130,246,0.2), transparent)',
+          }}
+        />
+        <div className="relative mx-auto max-w-6xl px-4 py-20 sm:px-6 sm:py-28 lg:px-8">
+          <motion.div
+            initial={{ opacity: 0, y: 20 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ duration: 0.5 }}
+            className="mx-auto max-w-4xl text-center"
+          >
+            <div className="inline-flex items-center gap-2 rounded-full border border-white/15 bg-white/5 px-4 py-1.5 font-sans text-xs font-semibold uppercase tracking-wider text-[#FF6A47]">
+              <Sparkles className="h-3.5 w-3.5" />
+              Smart Service. Smarter Restaurants.
             </div>
-          </div>
+            <h1 className="mt-8 font-heading text-4xl font-bold leading-tight tracking-tight text-white sm:text-5xl lg:text-6xl">
+              AI That Runs Your{' '}
+              <span className="text-[#FF6A47]">Restaurant</span>
+            </h1>
+            <p className="mx-auto mt-6 max-w-2xl font-sans text-lg leading-relaxed text-white/70">
+              Automate operations, reduce waste, delight customers, and grow profits — all with AI. Servify AI is the
+              modern control room for hospitality teams.
+            </p>
+            <div className="mt-10 flex flex-wrap items-center justify-center gap-4">
+              <Button
+                size="lg"
+                className="h-12 px-8 font-sans text-base font-semibold bg-[#FF6A47] text-white shadow-lg shadow-[#FF6A47]/30 hover:bg-[#ff5a38]"
+                asChild
+              >
+                <Link to="/signup">
+                  Get started
+                  <ArrowRight className="h-4 w-4" />
+                </Link>
+              </Button>
+              <Button
+                size="lg"
+                variant="outline"
+                className="h-12 border-white/25 bg-transparent px-8 font-sans text-base text-white hover:bg-white/10 hover:text-white"
+                asChild
+              >
+                <Link to="/features">Explore features</Link>
+              </Button>
+            </div>
+          </motion.div>
 
-          <div className="rounded-2xl border bg-white/90 p-6">
-            <h2 className="text-2xl font-bold">Feature Tour By Module</h2>
-            <div className="mt-4 space-y-3">
-              {modules.map((item) => {
-                const Icon = item.icon;
-                return (
-                  <div key={item.title} className="rounded-xl border bg-slate-50 p-4 flex gap-3">
-                    <div className="w-10 h-10 rounded-lg bg-slate-900 text-amber-300 grid place-items-center shrink-0">
-                      <Icon className="h-5 w-5" />
+          <motion.div
+            initial={{ opacity: 0, y: 32 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ duration: 0.55, delay: 0.12 }}
+            className="mx-auto mt-16 max-w-5xl"
+          >
+            <div className="rounded-2xl border border-white/10 bg-gradient-to-b from-white/[0.08] to-transparent p-1 shadow-2xl shadow-black/40">
+              <div className="rounded-xl bg-[#0f0f0f] p-6 sm:p-10">
+                <div className="flex flex-col gap-6 lg:flex-row lg:items-center lg:justify-between">
+                  <div className="flex items-start gap-4">
+                    <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-xl bg-[#FF6A47]/15 text-[#FF6A47]">
+                      <Cpu className="h-6 w-6" />
                     </div>
                     <div>
-                      <p className="font-semibold">{item.title}</p>
-                      <p className="text-xs text-slate-600 mt-1">Where: {item.where}</p>
-                      <p className="text-xs text-slate-600">Access: {item.forRole}</p>
+                      <p className="font-heading text-lg font-semibold text-white">Command center preview</p>
+                      <p className="mt-1 font-sans text-sm text-white/60">
+                        Dashboards, AI insights, orders, and reports — tuned for dark, high-contrast work environments.
+                      </p>
                     </div>
                   </div>
-                );
-              })}
+                  <div className="flex flex-wrap gap-3 font-sans text-xs text-white/50">
+                    <span className="rounded-full border border-[#3B82F6]/40 bg-[#3B82F6]/10 px-3 py-1 text-[#93C5FD]">
+                      Trust · Secure portals
+                    </span>
+                    <span className="rounded-full border border-[#FF6A47]/40 bg-[#FF6A47]/10 px-3 py-1 text-[#FFAB9A]">
+                      Action · Real-time ops
+                    </span>
+                  </div>
+                </div>
+                <div className="mt-8 grid gap-4 sm:grid-cols-3">
+                  {stats.map((item) => (
+                    <div
+                      key={item.label}
+                      className="rounded-xl border border-white/10 bg-white/[0.03] px-4 py-4 text-left"
+                    >
+                      <p className="font-heading text-sm font-semibold text-[#FF6A47]">{item.value}</p>
+                      <p className="mt-1 font-sans text-xs text-white/55">{item.label}</p>
+                    </div>
+                  ))}
+                </div>
+              </div>
             </div>
+          </motion.div>
+        </div>
+      </section>
+
+      <section className="border-b border-white/10 bg-[#141414] py-20 sm:py-24">
+        <div className="mx-auto max-w-6xl px-4 sm:px-6 lg:px-8">
+          <div className="mx-auto max-w-2xl text-center">
+            <h2 className="font-heading text-3xl font-bold text-white sm:text-4xl">
+              Everything your team needs to <span className="text-[#3B82F6]">scale</span>
+            </h2>
+            <p className="mt-4 font-sans text-white/65">
+              From first seat to final check — one platform, clear roles, and AI where it actually saves time.
+            </p>
+          </div>
+          <div className="mt-14 grid gap-6 sm:grid-cols-2 lg:grid-cols-3">
+            {features.map((feature, index) => {
+              const Icon = feature.icon;
+              return (
+                <motion.div
+                  key={feature.title}
+                  initial={{ opacity: 0, y: 14 }}
+                  whileInView={{ opacity: 1, y: 0 }}
+                  viewport={{ once: true }}
+                  transition={{ delay: index * 0.05 }}
+                  className="rounded-2xl border border-white/10 bg-[#1A1A1A] p-6 transition-colors hover:border-[#FF6A47]/30"
+                >
+                  <Icon className={`h-8 w-8 ${feature.accent}`} />
+                  <h3 className="mt-4 font-heading text-lg font-semibold text-white">{feature.title}</h3>
+                  <p className="mt-2 font-sans text-sm leading-relaxed text-white/60">{feature.description}</p>
+                </motion.div>
+              );
+            })}
           </div>
         </div>
       </section>
 
-      <footer className="border-t bg-slate-950 text-slate-100">
-        <div className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 py-8 grid grid-cols-1 md:grid-cols-3 gap-4 text-sm">
-          <div>
-            <p className="font-semibold">Servify AI</p>
-            <p className="text-slate-300 mt-1">Multi-restaurant management platform</p>
+      <section className="py-20 sm:py-24">
+        <div className="mx-auto max-w-6xl px-4 sm:px-6 lg:px-8">
+          <div className="rounded-2xl border border-emerald-500/25 bg-emerald-500/[0.06] p-6 sm:flex sm:items-start sm:gap-4 sm:p-8">
+            <ShieldCheck className="h-8 w-8 shrink-0 text-emerald-400" />
+            <div>
+              <h3 className="font-heading text-xl font-semibold text-white">Security & access you can trust</h3>
+              <p className="mt-2 font-sans text-sm leading-relaxed text-white/70 sm:text-base">
+                Role-based permissions keep staff in their lane while admins and managers retain full visibility. Each
+                restaurant portal stays isolated — no accidental cross-venue data.
+              </p>
+            </div>
           </div>
-          <div>
-            <p className="font-semibold">Team</p>
-            <p className="text-slate-300 mt-1">Founder: Abdullah</p>
-            <p className="text-slate-300">Co-Founder: Huzaifa Tahir</p>
-          </div>
-          <div>
-            <p className="font-semibold">Links</p>
-            <a href="https://devhaki.com" className="text-sky-300 hover:text-sky-200" target="_blank" rel="noreferrer">devhaki.com</a>
-            <p className="mt-1"><Link to="/contact" className="text-sky-300 hover:text-sky-200">Contact Page</Link></p>
+
+          <div className="mt-16 rounded-2xl border border-white/10 bg-gradient-to-br from-[#FF6A47]/10 via-transparent to-[#3B82F6]/10 px-6 py-12 text-center sm:px-12">
+            <h2 className="font-heading text-2xl font-bold text-white sm:text-3xl">
+              Ready to run a smarter service?
+            </h2>
+            <p className="mx-auto mt-3 max-w-xl font-sans text-white/65">
+              Create your restaurant portal in minutes. Invite your team and go live with orders the same day.
+            </p>
+            <div className="mt-8 flex flex-wrap justify-center gap-4">
+              <Button
+                size="lg"
+                className="font-sans font-semibold bg-[#FF6A47] text-white hover:bg-[#ff5a38]"
+                asChild
+              >
+                <Link to="/signup">Create your portal</Link>
+              </Button>
+              <Button
+                size="lg"
+                variant="outline"
+                className="border-white/25 bg-transparent font-sans text-white hover:bg-white/10"
+                asChild
+              >
+                <Link to="/contact">Talk to us</Link>
+              </Button>
+            </div>
           </div>
         </div>
-      </footer>
-    </div>
+      </section>
+    </MarketingShell>
   );
 }

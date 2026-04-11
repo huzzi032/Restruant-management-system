@@ -4,7 +4,17 @@ module.exports = {
   content: ['./index.html', './src/**/*.{js,ts,jsx,tsx}'],
   theme: {
     extend: {
+      fontFamily: {
+        sans: ['Inter', 'ui-sans-serif', 'system-ui', 'sans-serif'],
+        heading: ['Poppins', 'ui-sans-serif', 'system-ui', 'sans-serif'],
+      },
       colors: {
+        servify: {
+          orange: '#FF6A47',
+          blue: '#3B82F6',
+          dark: '#1A1A1A',
+          gray: '#F5F5F5',
+        },
         border: "hsl(var(--border))",
         input: "hsl(var(--input))",
         ring: "hsl(var(--ring))",
