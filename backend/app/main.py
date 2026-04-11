@@ -14,6 +14,16 @@ from app.core.database import init_db
 from app.routers import api_router
 
 
+def _ensure_writable_dir(path: str, fallback: str) -> str:
+    """Create directory or gracefully fallback to a writable /tmp path."""
+    try:
+        os.makedirs(path, exist_ok=True)
+        return path
+    except OSError:
+        os.makedirs(fallback, exist_ok=True)
+        return fallback
+
+
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     """Application lifespan handler"""
@@ -23,9 +33,9 @@ async def lifespan(app: FastAPI):
     app.state.startup_error = None
 
     try:
-        # Create upload directories
-        os.makedirs(settings.UPLOAD_DIR, exist_ok=True)
-        os.makedirs(settings.INVOICE_DIR, exist_ok=True)
+        # Create storage directories with serverless-safe fallback.
+        settings.UPLOAD_DIR = _ensure_writable_dir(settings.UPLOAD_DIR, "/tmp/uploads")
+        settings.INVOICE_DIR = _ensure_writable_dir(settings.INVOICE_DIR, "/tmp/invoices")
 
         # Initialize database
         init_db()

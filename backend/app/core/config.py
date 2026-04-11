@@ -83,6 +83,32 @@ class Settings(BaseSettings):
     UPLOAD_DIR: str = _default_path("./uploads", "/tmp/uploads")
     INVOICE_DIR: str = _default_path("./invoices", "/tmp/invoices")
     RUNTIME_SETTINGS_FILE: str = _default_path("./runtime_settings.json", "/tmp/runtime_settings.json")
+
+    @field_validator("UPLOAD_DIR", "INVOICE_DIR", mode="before")
+    @classmethod
+    def normalize_storage_dirs(cls, value: str, info) -> str:
+        if not isinstance(value, str):
+            return value
+
+        path = value.strip()
+        if _is_vercel() and (path.startswith("./") or path.startswith("../") or not path.startswith("/tmp/")):
+            if info.field_name == "UPLOAD_DIR":
+                return "/tmp/uploads"
+            return "/tmp/invoices"
+
+        return path
+
+    @field_validator("RUNTIME_SETTINGS_FILE", mode="before")
+    @classmethod
+    def normalize_runtime_settings_file(cls, value: str) -> str:
+        if not isinstance(value, str):
+            return value
+
+        path = value.strip()
+        if _is_vercel() and (path.startswith("./") or path.startswith("../") or not path.startswith("/tmp/")):
+            return "/tmp/runtime_settings.json"
+
+        return path
     
     class Config:
         env_file = ".env"
