@@ -37,6 +37,9 @@ class BusinessSettingsStore:
 		with self._lock:
 			self._cache["tax_rate"] = float(tax_rate)
 			self._cache["currency"] = currency.strip().upper()
+			directory = os.path.dirname(settings.RUNTIME_SETTINGS_FILE)
+			if directory:
+				os.makedirs(directory, exist_ok=True)
 			with open(settings.RUNTIME_SETTINGS_FILE, "w", encoding="utf-8") as file:
 				json.dump(self._cache, file, indent=2)
 			return dict(self._cache)

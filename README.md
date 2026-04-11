@@ -244,6 +244,39 @@ CURRENCY=USD
 VITE_API_URL=http://localhost:8000/api/v1
 ```
 
+## Deploy Backend on Vercel
+
+This repository includes a Vercel-ready backend setup in `backend/`:
+- `backend/api/index.py` (serverless entrypoint)
+- `backend/vercel.json` (routing/build config)
+- `backend/runtime.txt` (Python version)
+
+### Important Production Note
+
+Vercel serverless functions have ephemeral storage. SQLite works for testing, but data does not persist reliably between cold starts/redeploys. For production, use PostgreSQL and set `DATABASE_URL`.
+
+### Deploy Steps (Backend Only)
+
+1. Push your code to GitHub.
+2. In Vercel Dashboard, click **New Project** and import this repo.
+3. Set **Root Directory** to `backend`.
+4. Leave framework as **Other**.
+5. Add Environment Variables in Vercel:
+   - `SECRET_KEY` = strong random string
+   - `CORS_ORIGINS` = frontend URL(s), comma-separated
+   - `DATABASE_URL` = PostgreSQL URL (recommended for production)
+   - `GROQ_API_KEY` = optional, only if AI endpoints are needed
+   - `GROQ_MODEL` = optional (example: `llama-3.3-70b-versatile`)
+   - `DEBUG` = `False`
+6. Click **Deploy**.
+
+### After Deploy
+
+- Health check: `https://<your-backend-domain>/health`
+- API docs: `https://<your-backend-domain>/docs`
+
+If you keep SQLite temporarily, the backend now uses `/tmp` paths on Vercel to avoid startup write errors, but treat it as non-persistent storage.
+
 ## Enable AI Features
 
 1. Add a valid Groq API key in backend `.env`:

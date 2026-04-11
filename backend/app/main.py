@@ -73,7 +73,7 @@ app.add_middleware(
 )
 
 # Static files (uploaded menu images and other assets)
-app.mount("/uploads", StaticFiles(directory=settings.UPLOAD_DIR), name="uploads")
+app.mount("/uploads", StaticFiles(directory=settings.UPLOAD_DIR, check_dir=False), name="uploads")
 
 
 # Exception handlers

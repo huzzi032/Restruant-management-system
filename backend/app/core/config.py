@@ -7,6 +7,14 @@ from typing import Optional
 import os
 
 
+def _is_vercel() -> bool:
+    return os.getenv("VERCEL") == "1" or bool(os.getenv("VERCEL_ENV"))
+
+
+def _default_path(local_path: str, vercel_path: str) -> str:
+    return vercel_path if _is_vercel() else local_path
+
+
 class Settings(BaseSettings):
     """Application settings"""
     
@@ -21,7 +29,7 @@ class Settings(BaseSettings):
     ACCESS_TOKEN_EXPIRE_MINUTES: int = 60 * 24  # 24 hours
     
     # Database
-    DATABASE_URL: str = "sqlite:///./restaurant.db"
+    DATABASE_URL: str = _default_path("sqlite:///./restaurant.db", "sqlite:////tmp/restaurant.db")
     # For PostgreSQL: postgresql://user:password@localhost/restaurant
     
     # CORS
@@ -51,9 +59,9 @@ class Settings(BaseSettings):
     ENABLE_DEMO_SEED: bool = False
     
     # File Storage
-    UPLOAD_DIR: str = "./uploads"
-    INVOICE_DIR: str = "./invoices"
-    RUNTIME_SETTINGS_FILE: str = "./runtime_settings.json"
+    UPLOAD_DIR: str = _default_path("./uploads", "/tmp/uploads")
+    INVOICE_DIR: str = _default_path("./invoices", "/tmp/invoices")
+    RUNTIME_SETTINGS_FILE: str = _default_path("./runtime_settings.json", "/tmp/runtime_settings.json")
     
     class Config:
         env_file = ".env"
