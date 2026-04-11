@@ -11,23 +11,31 @@ import os
 from app.core.config import settings
 
 
-# Create engine based on database URL
-if settings.DATABASE_URL.startswith("sqlite"):
-    # SQLite configuration for development
-    engine = create_engine(
-        settings.DATABASE_URL,
-        connect_args={"check_same_thread": False},
-        poolclass=StaticPool,
-        echo=settings.DEBUG
-    )
-else:
-    # PostgreSQL configuration for production
-    engine = create_engine(
-        settings.DATABASE_URL,
+def _build_engine(db_url: str):
+    if db_url.startswith("sqlite"):
+        return create_engine(
+            db_url,
+            connect_args={"check_same_thread": False},
+            poolclass=StaticPool,
+            echo=settings.DEBUG,
+        )
+
+    return create_engine(
+        db_url,
         pool_size=20,
         max_overflow=0,
-        echo=settings.DEBUG
+        echo=settings.DEBUG,
     )
+
+
+try:
+    # Create engine based on configured database URL.
+    engine = _build_engine(settings.DATABASE_URL)
+except Exception as exc:
+    fallback_url = "sqlite:////tmp/restaurant.db"
+    print(f"Database engine init failed for '{settings.DATABASE_URL}': {exc}")
+    print(f"Falling back to '{fallback_url}'")
+    engine = _build_engine(fallback_url)
 
 # Session factory
 SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)

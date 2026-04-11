@@ -19,14 +19,21 @@ async def lifespan(app: FastAPI):
     """Application lifespan handler"""
     # Startup
     print("Starting up Restaurant Management System...")
-    
-    # Create upload directories
-    os.makedirs(settings.UPLOAD_DIR, exist_ok=True)
-    os.makedirs(settings.INVOICE_DIR, exist_ok=True)
-    
-    # Initialize database
-    init_db()
-    business_settings_store.load()
+    app.state.startup_ok = True
+    app.state.startup_error = None
+
+    try:
+        # Create upload directories
+        os.makedirs(settings.UPLOAD_DIR, exist_ok=True)
+        os.makedirs(settings.INVOICE_DIR, exist_ok=True)
+
+        # Initialize database
+        init_db()
+        business_settings_store.load()
+    except Exception as exc:
+        app.state.startup_ok = False
+        app.state.startup_error = str(exc)
+        print(f"Startup warning: {exc}")
     
     yield
     
@@ -97,10 +104,15 @@ app.include_router(api_router, prefix="/api/v1")
 @app.get("/health")
 def health_check():
     """Health check endpoint"""
+    startup_ok = getattr(app.state, "startup_ok", True)
+    startup_error = getattr(app.state, "startup_error", None)
+
     return {
         "status": "healthy",
         "app_name": settings.APP_NAME,
-        "version": settings.APP_VERSION
+        "version": settings.APP_VERSION,
+        "startup_ok": startup_ok,
+        "startup_error": startup_error,
     }
 
 
