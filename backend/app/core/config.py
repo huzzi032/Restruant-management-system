@@ -2,9 +2,10 @@
 Configuration settings for the Restaurant Management System
 """
 import json
-from pydantic_settings import BaseSettings
-from typing import Optional
 import os
+from pydantic_settings import BaseSettings
+from pydantic import field_validator
+from typing import Optional
 
 
 def _is_vercel() -> bool:
@@ -29,8 +30,28 @@ class Settings(BaseSettings):
     ACCESS_TOKEN_EXPIRE_MINUTES: int = 60 * 24  # 24 hours
     
     # Database
-    DATABASE_URL: str = _default_path("sqlite:///./restaurant.db", "sqlite:////tmp/restaurant.db")
+    DATABASE_URL: str = (
+        os.getenv("DATABASE_URL")
+        or os.getenv("POSTGRES_URL")
+        or _default_path("sqlite:///./restaurant.db", "sqlite:////tmp/restaurant.db")
+    )
     # For PostgreSQL: postgresql://user:password@localhost/restaurant
+
+    @field_validator("DATABASE_URL", mode="before")
+    @classmethod
+    def normalize_database_url(cls, value: str) -> str:
+        """Normalize DB URL formats commonly provided by hosting platforms."""
+        if not isinstance(value, str):
+            return value
+
+        url = value.strip()
+        if url.startswith("postgres://"):
+            return url.replace("postgres://", "postgresql+psycopg2://", 1)
+
+        if url.startswith("postgresql://") and "+" not in url.split("://", 1)[0]:
+            return url.replace("postgresql://", "postgresql+psycopg2://", 1)
+
+        return url
     
     # CORS
     CORS_ORIGINS: str = "http://localhost:5173,http://localhost:3000"
