@@ -54,21 +54,41 @@ class Settings(BaseSettings):
         return url
     
     # CORS
-    CORS_ORIGINS: str = "http://localhost:5173,http://localhost:3000"
+    CORS_ORIGINS: str = (
+        "http://localhost:5173,"
+        "http://127.0.0.1:5173,"
+        "http://localhost:3000,"
+        "https://servify.devhaki.com,"
+        "https://www.servify.devhaki.com"
+    )
+    CORS_ORIGIN_REGEX: str = r"^(https?://(localhost|127\.0\.0\.1)(:\d+)?|https://([a-z0-9-]+\.)?devhaki\.com)$"
     PUBLIC_MENU_URL: str = "http://localhost:5173/menu/public"
 
     @property
     def cors_origins_list(self) -> list[str]:
         """Allow CORS origins from .env as CSV or JSON array string."""
         raw = self.CORS_ORIGINS.strip()
+        origins: list[str]
+
         if raw.startswith("["):
             try:
                 parsed = json.loads(raw)
                 if isinstance(parsed, list):
-                    return [str(origin).strip() for origin in parsed if str(origin).strip()]
+                    origins = [str(origin).strip() for origin in parsed if str(origin).strip()]
+                else:
+                    origins = []
             except json.JSONDecodeError:
-                pass
-        return [origin.strip() for origin in raw.split(",") if origin.strip()]
+                origins = []
+        else:
+            origins = [origin.strip() for origin in raw.split(",") if origin.strip()]
+
+        normalized: list[str] = []
+        for origin in origins:
+            cleaned_origin = origin.rstrip("/")
+            if cleaned_origin and cleaned_origin not in normalized:
+                normalized.append(cleaned_origin)
+
+        return normalized
     
     # Groq AI API
     GROQ_API_KEY: Optional[str] = None
