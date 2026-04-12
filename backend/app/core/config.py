@@ -51,6 +51,24 @@ class Settings(BaseSettings):
         if url.startswith("postgresql://") and "+" not in url.split("://", 1)[0]:
             return url.replace("postgresql://", "postgresql+psycopg2://", 1)
 
+        if _is_vercel() and url.startswith("sqlite"):
+            # Vercel's deployment filesystem is read-only except /tmp.
+            # Force file-based SQLite URLs to a writable serverless path.
+            base_url, separator, query = url.partition("?")
+
+            if ":memory:" in base_url:
+                return url
+
+            if ":///" in base_url:
+                dialect_prefix, sqlite_path = base_url.split(":///", 1)
+                if sqlite_path.startswith("/tmp/"):
+                    return url
+                forced_base = f"{dialect_prefix}:////tmp/restaurant.db"
+            else:
+                forced_base = "sqlite:////tmp/restaurant.db"
+
+            return f"{forced_base}?{query}" if separator else forced_base
+
         return url
     
     # CORS
