@@ -7,11 +7,47 @@ from datetime import datetime
 from fastapi import HTTPException, status
 import re
 import secrets
+import time
+from typing import TypeVar, Callable, Any
 
 from app.models.user import User, UserRole
 from app.models.restaurant import Restaurant
 from app.core.security import verify_password, get_password_hash, create_access_token
 from app.schemas.user import UserCreate, UserUpdate, BulkUserCreate, RestaurantSignup
+
+
+def _retry_on_db_error(max_retries: int = 3, initial_delay: float = 0.5):
+    """
+    Decorator to retry database operations on connection errors.
+    Uses exponential backoff: 0.5s, 1s, 2s, etc.
+    """
+    def decorator(func: Callable) -> Callable:
+        def wrapper(*args, **kwargs) -> Any:
+            delay = initial_delay
+            last_error = None
+            
+            for attempt in range(max_retries):
+                try:
+                    return func(*args, **kwargs)
+                except Exception as e:
+                    last_error = e
+                    # Check if it's a connection error
+                    error_msg = str(e).lower()
+                    if any(keyword in error_msg for keyword in ['connection', 'network', 'timeout', 'cannot assign']):
+                        if attempt < max_retries - 1:
+                            print(f"Database connection error (attempt {attempt + 1}/{max_retries}): {e}")
+                            time.sleep(delay)
+                            delay *= 2  # Exponential backoff
+                            continue
+                    # Re-raise non-connection errors immediately
+                    raise
+            
+            # If we exhausted retries, raise the last error
+            if last_error:
+                raise last_error
+        
+        return wrapper
+    return decorator
 
 
 class AuthService:
@@ -294,6 +330,7 @@ class AuthService:
         }
 
     @staticmethod
+    @_retry_on_db_error(max_retries=3, initial_delay=0.5)
     def signup_restaurant(db: Session, payload: RestaurantSignup):
         """Create a restaurant tenant and an admin account for it."""
         normalized_username = AuthService._normalize_username(payload.admin_username)

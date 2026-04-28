@@ -7,11 +7,39 @@ from fastapi.responses import JSONResponse
 from fastapi.staticfiles import StaticFiles
 from contextlib import asynccontextmanager
 import os
+import logging
+from logging.config import dictConfig
 
 from app.core.config import settings
 from app.core.business_settings import business_settings_store
 from app.core.database import init_db
 from app.routers import api_router
+
+
+# Configure logging
+log_config = {
+    "version": 1,
+    "disable_existing_loggers": False,
+    "formatters": {
+        "default": {
+            "format": "%(asctime)s - %(name)s - %(levelname)s - %(message)s",
+        },
+    },
+    "handlers": {
+        "default": {
+            "formatter": "default",
+            "class": "logging.StreamHandler",
+            "stream": "ext://sys.stdout",
+        },
+    },
+    "loggers": {
+        "app": {"handlers": ["default"], "level": "INFO"},
+        "sqlalchemy": {"handlers": ["default"], "level": "WARNING"},
+    },
+}
+
+dictConfig(log_config)
+logger = logging.getLogger("app")
 
 
 def _ensure_writable_dir(path: str, fallback: str) -> str:
@@ -28,7 +56,8 @@ def _ensure_writable_dir(path: str, fallback: str) -> str:
 async def lifespan(app: FastAPI):
     """Application lifespan handler"""
     # Startup
-    print("Starting up Restaurant Management System...")
+    logger.info("Starting up Restaurant Management System...")
+    logger.info(f"Database URL: {settings.DATABASE_URL[:50]}..." if settings.DATABASE_URL else "No DATABASE_URL set")
     app.state.startup_ok = True
     app.state.startup_error = None
 
@@ -36,19 +65,26 @@ async def lifespan(app: FastAPI):
         # Create storage directories with serverless-safe fallback.
         settings.UPLOAD_DIR = _ensure_writable_dir(settings.UPLOAD_DIR, "/tmp/uploads")
         settings.INVOICE_DIR = _ensure_writable_dir(settings.INVOICE_DIR, "/tmp/invoices")
+        logger.info(f"Upload directory: {settings.UPLOAD_DIR}")
+        logger.info(f"Invoice directory: {settings.INVOICE_DIR}")
 
         # Initialize database
+        logger.info("Initializing database...")
         init_db()
+        logger.info("Database initialized successfully")
+        
+        logger.info("Loading business settings...")
         business_settings_store.load()
+        logger.info("Business settings loaded")
     except Exception as exc:
         app.state.startup_ok = False
         app.state.startup_error = str(exc)
-        print(f"Startup warning: {exc}")
+        logger.error(f"Startup error: {exc}", exc_info=True)
     
     yield
     
     # Shutdown
-    print("Shutting down...")
+    logger.info("Shutting down Restaurant Management System...")
 
 
 # Create FastAPI app

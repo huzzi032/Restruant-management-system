@@ -45,11 +45,22 @@ class Settings(BaseSettings):
             return value
 
         url = value.strip()
+        
+        # Convert postgres:// to postgresql+psycopg2://
         if url.startswith("postgres://"):
-            return url.replace("postgres://", "postgresql+psycopg2://", 1)
+            url = url.replace("postgres://", "postgresql+psycopg2://", 1)
+        elif url.startswith("postgresql://") and "+" not in url.split("://", 1)[0]:
+            url = url.replace("postgresql://", "postgresql+psycopg2://", 1)
 
-        if url.startswith("postgresql://") and "+" not in url.split("://", 1)[0]:
-            return url.replace("postgresql://", "postgresql+psycopg2://", 1)
+        # Add SSL parameters for PostgreSQL connections (especially for cloud databases like Supabase)
+        if "postgresql+" in url:
+            # Check if SSL params are already present
+            if "sslmode" not in url and "?" not in url:
+                # Add SSL requirement for secure connections to cloud databases
+                url = url + "?sslmode=require"
+            elif "sslmode" not in url and "?" in url:
+                # URL already has query params, append sslmode
+                url = url + "&sslmode=require"
 
         if _is_vercel() and url.startswith("sqlite"):
             # Vercel's deployment filesystem is read-only except /tmp.

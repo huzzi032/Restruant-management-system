@@ -5,12 +5,15 @@ from fastapi import APIRouter, Depends, HTTPException, status
 from fastapi.security import HTTPBearer
 from sqlalchemy.orm import Session
 from typing import List
+import logging
 
 from app.core.database import get_db
 from app.core.security import get_current_user, require_admin
 from app.schemas.user import UserCreate, UserResponse, UserLogin, Token, RestaurantSignup, RestaurantSignupResponse
 from app.services.auth_service import AuthService
 from app.models.user import User
+
+logger = logging.getLogger(__name__)
 
 router = APIRouter()
 security = HTTPBearer()
@@ -19,24 +22,44 @@ security = HTTPBearer()
 @router.post("/login", response_model=Token)
 def login(credentials: UserLogin, db: Session = Depends(get_db)):
     """Login and get access token"""
-    result = AuthService.login(db, credentials.username, credentials.password, credentials.restaurant_code)
-    return {
-        "access_token": result["access_token"],
-        "token_type": result["token_type"],
-        "user": result["user"].to_dict()
-    }
+    try:
+        result = AuthService.login(db, credentials.username, credentials.password, credentials.restaurant_code)
+        return {
+            "access_token": result["access_token"],
+            "token_type": result["token_type"],
+            "user": result["user"].to_dict()
+        }
+    except Exception as e:
+        logger.error(f"Login failed: {str(e)}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Database connection error. Please try again."
+        )
 
 
 @router.post("/signup", response_model=RestaurantSignupResponse)
 def signup(payload: RestaurantSignup, db: Session = Depends(get_db)):
     """Create a restaurant tenant and its admin account."""
-    restaurant, admin_user = AuthService.signup_restaurant(db, payload)
-    return {
-        "restaurant_id": restaurant.id,
-        "restaurant_name": restaurant.name,
-        "restaurant_code": restaurant.code,
-        "admin_user": admin_user.to_dict(),
-    }
+    try:
+        restaurant, admin_user = AuthService.signup_restaurant(db, payload)
+        return {
+            "restaurant_id": restaurant.id,
+            "restaurant_name": restaurant.name,
+            "restaurant_code": restaurant.code,
+            "admin_user": admin_user.to_dict(),
+        }
+    except Exception as e:
+        logger.error(f"Signup failed: {str(e)}")
+        error_msg = str(e).lower()
+        if any(keyword in error_msg for keyword in ['connection', 'network', 'timeout']):
+            raise HTTPException(
+                status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+                detail="Database service temporarily unavailable. Please try again in a moment."
+            )
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Signup failed. Please try again."
+        )
 
 
 @router.post("/register", response_model=UserResponse)

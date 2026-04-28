@@ -1,14 +1,21 @@
 """
 Database configuration and session management
 """
-from sqlalchemy import create_engine, event
+from sqlalchemy import create_engine, event, pool
 from sqlalchemy.ext.declarative import declarative_base
 from sqlalchemy.orm import sessionmaker, Session
-from sqlalchemy.pool import StaticPool
+from sqlalchemy.pool import StaticPool, NullPool
 from contextlib import contextmanager
 import os
+import logging
 
 from app.core.config import settings
+
+logger = logging.getLogger(__name__)
+
+
+def _is_vercel() -> bool:
+    return os.getenv("VERCEL") == "1" or bool(os.getenv("VERCEL_ENV"))
 
 
 def _build_engine(db_url: str):
@@ -20,21 +27,48 @@ def _build_engine(db_url: str):
             echo=settings.DEBUG,
         )
 
-    return create_engine(
-        db_url,
-        pool_size=20,
-        max_overflow=0,
-        echo=settings.DEBUG,
-    )
+    # PostgreSQL engine configuration
+    # For Vercel serverless, we use NullPool to avoid connection pool issues
+    # Each function invocation gets a fresh connection
+    is_vercel = _is_vercel()
+    
+    if is_vercel:
+        # Vercel serverless: use NullPool (no connection pooling)
+        # Each request gets a new connection
+        engine = create_engine(
+            db_url,
+            poolclass=NullPool,
+            connect_args={
+                "connect_timeout": 10,
+                "options": "-c statement_timeout=30000"  # 30 second statement timeout
+            },
+            echo=settings.DEBUG,
+        )
+    else:
+        # Local development: use standard pool
+        engine = create_engine(
+            db_url,
+            pool_size=10,
+            max_overflow=5,
+            pool_recycle=3600,  # Recycle connections after 1 hour
+            pool_pre_ping=True,  # Verify connections before using them
+            connect_args={
+                "connect_timeout": 10,
+            },
+            echo=settings.DEBUG,
+        )
+    
+    return engine
 
 
 try:
     # Create engine based on configured database URL.
     engine = _build_engine(settings.DATABASE_URL)
+    logger.info(f"Database engine created successfully for: {settings.DATABASE_URL[:50]}...")
 except Exception as exc:
     fallback_url = "sqlite:////tmp/restaurant.db"
-    print(f"Database engine init failed for '{settings.DATABASE_URL}': {exc}")
-    print(f"Falling back to '{fallback_url}'")
+    logger.error(f"Database engine init failed for '{settings.DATABASE_URL}': {exc}")
+    logger.info(f"Falling back to '{fallback_url}'")
     engine = _build_engine(fallback_url)
 
 # Session factory
@@ -84,7 +118,7 @@ def init_db():
     if settings.ENABLE_DEMO_SEED:
         _seed_default_categories(default_restaurant_id)
         _seed_default_tables(default_restaurant_id)
-    print("Database initialized successfully!")
+    logger.info("Database initialized successfully!")
 
 
 def _ensure_restaurant_columns():
