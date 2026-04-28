@@ -63,12 +63,23 @@ def _build_engine(db_url: str):
 
 try:
     # Create engine based on configured database URL.
+    is_vercel = _is_vercel()
+    env_source = "Vercel environment" if is_vercel else "local .env or environment"
+    
+    if not settings.DATABASE_URL or settings.DATABASE_URL.startswith("sqlite"):
+        logger.warning(f"Using SQLite database from {env_source}. For production, set DATABASE_URL to PostgreSQL.")
+    else:
+        logger.info(f"Creating PostgreSQL engine from {env_source}")
+        logger.info(f"Database: {settings.DATABASE_URL[:60]}..." if settings.DATABASE_URL else "No DATABASE_URL")
+    
     engine = _build_engine(settings.DATABASE_URL)
-    logger.info(f"Database engine created successfully for: {settings.DATABASE_URL[:50]}...")
+    logger.info(f"✓ Database engine created successfully")
 except Exception as exc:
     fallback_url = "sqlite:////tmp/restaurant.db"
-    logger.error(f"Database engine init failed for '{settings.DATABASE_URL}': {exc}")
-    logger.info(f"Falling back to '{fallback_url}'")
+    logger.error(f"✗ Database engine init failed: {exc}")
+    logger.warning(f"Falling back to SQLite at '{fallback_url}'")
+    logger.warning("Note: SQLite on Vercel is ephemeral and will reset on each deployment.")
+    logger.warning("Set DATABASE_URL in Vercel dashboard to use persistent PostgreSQL.")
     engine = _build_engine(fallback_url)
 
 # Session factory
