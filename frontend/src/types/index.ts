@@ -188,6 +188,18 @@ export interface InventoryTransaction {
   created_at?: string;
 }
 
+export interface StockPrediction {
+  item_id: number;
+  item_name: string;
+  current_stock: number;
+  unit: string;
+  daily_usage_rate: number;
+  days_until_stockout: number | null;
+  predicted_stockout_date: string | null;
+  risk_level: 'critical' | 'warning' | 'healthy';
+  linked_menu_items: string[];
+}
+
 // Employee Types
 export interface Employee {
   id: number;

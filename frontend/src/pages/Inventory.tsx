@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { motion } from 'framer-motion';
+import { motion, AnimatePresence } from 'framer-motion';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -30,9 +30,120 @@ import {
   TrendingDown,
   TrendingUp,
   History,
+  Brain,
+  Calendar,
+  Flame,
+  Leaf,
+  ShieldAlert,
 } from 'lucide-react';
 import { inventoryService } from '@/services/api';
 import { toast } from 'sonner';
+import type { StockPrediction } from '@/types';
+
+const riskConfig: Record<string, { bg: string; border: string; text: string; icon: typeof Flame; label: string }> = {
+  critical: {
+    bg: 'bg-red-500/10',
+    border: 'border-red-500/30',
+    text: 'text-red-400',
+    icon: Flame,
+    label: 'Critical — Restock Now',
+  },
+  warning: {
+    bg: 'bg-amber-500/10',
+    border: 'border-amber-500/30',
+    text: 'text-amber-400',
+    icon: ShieldAlert,
+    label: 'Warning — Running Low',
+  },
+  healthy: {
+    bg: 'bg-emerald-500/10',
+    border: 'border-emerald-500/30',
+    text: 'text-emerald-400',
+    icon: Leaf,
+    label: 'Healthy Stock',
+  },
+};
+
+function PredictionCard({ prediction, index }: { prediction: StockPrediction; index: number }) {
+  const config = riskConfig[prediction.risk_level] || riskConfig.healthy;
+  const Icon = config.icon;
+
+  const stockoutLabel = prediction.predicted_stockout_date
+    ? new Date(prediction.predicted_stockout_date).toLocaleDateString('en-US', {
+        weekday: 'long',
+        month: 'short',
+        day: 'numeric',
+      })
+    : 'Not projected';
+
+  return (
+    <motion.div
+      initial={{ opacity: 0, y: 12 }}
+      animate={{ opacity: 1, y: 0 }}
+      transition={{ delay: index * 0.04, duration: 0.3 }}
+    >
+      <Card className={`${config.border} border ${config.bg} transition-shadow hover:shadow-lg`}>
+        <CardContent className="p-4 space-y-3">
+          {/* Header */}
+          <div className="flex items-start justify-between">
+            <div className="flex items-center gap-3">
+              <div className={`w-10 h-10 rounded-lg ${config.bg} flex items-center justify-center`}>
+                <Icon className={`h-5 w-5 ${config.text}`} />
+              </div>
+              <div>
+                <p className="font-semibold text-sm">{prediction.item_name}</p>
+                <p className="text-xs text-muted-foreground">
+                  {prediction.current_stock} {prediction.unit} remaining
+                </p>
+              </div>
+            </div>
+            <Badge className={`${config.bg} ${config.text} border ${config.border} text-xs`}>
+              {prediction.days_until_stockout !== null
+                ? prediction.days_until_stockout <= 1
+                  ? 'Today!'
+                  : `${Math.round(prediction.days_until_stockout)}d left`
+                : '∞'}
+            </Badge>
+          </div>
+
+          {/* Predicted stockout */}
+          <div className="flex items-center gap-2 text-xs text-muted-foreground">
+            <Calendar className="h-3.5 w-3.5" />
+            <span>
+              {prediction.days_until_stockout !== null
+                ? `Runs out by ${stockoutLabel}`
+                : 'No usage detected — stock is stable'}
+            </span>
+          </div>
+
+          {/* Usage rate */}
+          <div className="flex items-center gap-2 text-xs text-muted-foreground">
+            <TrendingDown className="h-3.5 w-3.5" />
+            <span>
+              {prediction.daily_usage_rate > 0
+                ? `~${prediction.daily_usage_rate} ${prediction.unit}/day burn rate`
+                : 'No recent usage'}
+            </span>
+          </div>
+
+          {/* Linked menu items */}
+          {prediction.linked_menu_items.length > 0 && (
+            <div className="flex flex-wrap gap-1.5 pt-1">
+              {prediction.linked_menu_items.map((name) => (
+                <span
+                  key={name}
+                  className="rounded-full bg-primary/10 px-2 py-0.5 text-[10px] font-medium text-primary"
+                >
+                  {name}
+                </span>
+              ))}
+            </div>
+          )}
+        </CardContent>
+      </Card>
+    </motion.div>
+  );
+}
 
 export default function Inventory() {
   const [search, setSearch] = useState('');
@@ -64,12 +175,18 @@ export default function Inventory() {
     queryFn: inventoryService.getValue,
   });
 
+  const { data: predictionsData, isLoading: predictionsLoading } = useQuery({
+    queryKey: ['inventory-predictions'],
+    queryFn: inventoryService.getPredictions,
+  });
+
   const createItemMutation = useMutation({
     mutationFn: inventoryService.createItem,
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['inventory-items'] });
       queryClient.invalidateQueries({ queryKey: ['low-stock'] });
       queryClient.invalidateQueries({ queryKey: ['inventory-value'] });
+      queryClient.invalidateQueries({ queryKey: ['inventory-predictions'] });
       setIsAddDialogOpen(false);
       setNewItem({
         name: '',
@@ -106,6 +223,9 @@ export default function Inventory() {
       is_active: true,
     });
   };
+
+  const criticalCount = predictionsData?.predictions?.filter((p) => p.risk_level === 'critical').length || 0;
+  const warningCount = predictionsData?.predictions?.filter((p) => p.risk_level === 'warning').length || 0;
 
   return (
     <motion.div
@@ -211,7 +331,7 @@ export default function Inventory() {
       </div>
 
       {/* Stats */}
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+      <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
         <Card>
           <CardContent className="p-4 flex items-center gap-4">
             <div className="w-12 h-12 rounded-lg bg-blue-500/10 flex items-center justify-center">
@@ -245,6 +365,19 @@ export default function Inventory() {
             </div>
           </CardContent>
         </Card>
+        <Card className={criticalCount > 0 ? 'border-red-500/30 bg-red-500/5' : warningCount > 0 ? 'border-amber-500/30 bg-amber-500/5' : ''}>
+          <CardContent className="p-4 flex items-center gap-4">
+            <div className={`w-12 h-12 rounded-lg flex items-center justify-center ${criticalCount > 0 ? 'bg-red-500/10' : warningCount > 0 ? 'bg-amber-500/10' : 'bg-purple-500/10'}`}>
+              <Brain className={`h-6 w-6 ${criticalCount > 0 ? 'text-red-500' : warningCount > 0 ? 'text-amber-500' : 'text-purple-500'}`} />
+            </div>
+            <div>
+              <p className="text-sm text-muted-foreground">AI Alerts</p>
+              <p className="text-2xl font-bold">
+                {criticalCount > 0 ? `${criticalCount} critical` : warningCount > 0 ? `${warningCount} warning` : 'All clear'}
+              </p>
+            </div>
+          </CardContent>
+        </Card>
       </div>
 
       <Tabs defaultValue="items" className="space-y-4">
@@ -252,6 +385,15 @@ export default function Inventory() {
           <TabsTrigger value="items" className="gap-2">
             <Package className="h-4 w-4" />
             All Items
+          </TabsTrigger>
+          <TabsTrigger value="predictions" className="gap-2">
+            <Brain className="h-4 w-4" />
+            AI Predictions
+            {criticalCount > 0 && (
+              <span className="ml-1 inline-flex h-5 min-w-[20px] items-center justify-center rounded-full bg-red-500 px-1.5 text-[10px] font-bold text-white">
+                {criticalCount}
+              </span>
+            )}
           </TabsTrigger>
           <TabsTrigger value="low-stock" className="gap-2">
             <AlertTriangle className="h-4 w-4" />
@@ -326,6 +468,69 @@ export default function Inventory() {
               </div>
             </CardContent>
           </Card>
+        </TabsContent>
+
+        {/* AI Predictions Tab */}
+        <TabsContent value="predictions">
+          <div className="space-y-4">
+            {/* Header info */}
+            <div className="flex items-center gap-3 rounded-lg border border-purple-500/20 bg-purple-500/5 px-4 py-3">
+              <Brain className="h-5 w-5 text-purple-400 shrink-0" />
+              <p className="text-sm text-muted-foreground">
+                AI analyzes your last <span className="font-semibold text-foreground">14 days</span> of order data
+                crossed with menu ingredient links to predict when stock will run out.
+              </p>
+            </div>
+
+            {predictionsLoading ? (
+              <div className="text-center py-16">
+                <Brain className="h-12 w-12 mx-auto mb-3 animate-pulse text-purple-400" />
+                <p className="text-muted-foreground">Analyzing consumption patterns…</p>
+              </div>
+            ) : !predictionsData?.predictions?.length ? (
+              <div className="text-center py-16">
+                <Package className="h-12 w-12 mx-auto mb-3 text-muted-foreground" />
+                <p className="text-muted-foreground">No inventory items to analyze yet.</p>
+                <p className="text-xs text-muted-foreground mt-1">Add items and link them to menu ingredients to see predictions.</p>
+              </div>
+            ) : (
+              <>
+                {/* Risk summary cards */}
+                {criticalCount > 0 && (
+                  <motion.div
+                    initial={{ opacity: 0, y: 8 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    className="rounded-lg border border-red-500/30 bg-red-500/10 px-4 py-3"
+                  >
+                    <p className="text-sm font-medium text-red-400">
+                      🔴 {criticalCount} item{criticalCount > 1 ? 's' : ''} will run out within 3 days — order now!
+                    </p>
+                  </motion.div>
+                )}
+                {warningCount > 0 && (
+                  <motion.div
+                    initial={{ opacity: 0, y: 8 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    transition={{ delay: 0.05 }}
+                    className="rounded-lg border border-amber-500/30 bg-amber-500/10 px-4 py-3"
+                  >
+                    <p className="text-sm font-medium text-amber-400">
+                      🟡 {warningCount} item{warningCount > 1 ? 's' : ''} will run out within a week
+                    </p>
+                  </motion.div>
+                )}
+
+                {/* Prediction cards grid */}
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                  <AnimatePresence>
+                    {predictionsData.predictions.map((prediction, index) => (
+                      <PredictionCard key={prediction.item_id} prediction={prediction} index={index} />
+                    ))}
+                  </AnimatePresence>
+                </div>
+              </>
+            )}
+          </div>
         </TabsContent>
 
         <TabsContent value="low-stock">

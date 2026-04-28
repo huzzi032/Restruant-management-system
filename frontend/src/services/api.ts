@@ -2,7 +2,7 @@ import axios from 'axios';
 import type { 
   User, LoginCredentials, AuthResponse, 
   Category, MenuItem, Table, Order, OrderItem,
-  InventoryItem, InventoryTransaction, Employee, Attendance, Salary,
+  InventoryItem, InventoryTransaction, StockPrediction, Employee, Attendance, Salary,
   Expense, Supplier, Payment, DailyReport, DashboardSummary, AIInsight,
   BulkUserCreatePayload, BulkUserCreateResponse, PaymentReceipt, PublicMenuQrResponse, BusinessSettings,
   RestaurantSignupPayload, RestaurantSignupResponse
@@ -45,13 +45,30 @@ api.interceptors.request.use(
 );
 
 // Response interceptor for error handling
+// Debounce 401 handling to prevent multiple simultaneous logouts
+let isLoggingOut = false;
+
 api.interceptors.response.use(
   (response) => response,
   (error) => {
     if (error.response?.status === 401) {
-      localStorage.removeItem('token');
-      localStorage.removeItem('user');
-      window.location.href = '/signin';
+      // Don't force-logout for login/signup requests — they naturally return 401 on bad creds
+      const url = error.config?.url || '';
+      const isAuthEndpoint = url.includes('/auth/login') || url.includes('/auth/signup');
+
+      if (!isAuthEndpoint && !isLoggingOut) {
+        isLoggingOut = true;
+
+        // Clear stored auth
+        localStorage.removeItem('token');
+        localStorage.removeItem('user');
+
+        // Dispatch a custom event so AuthContext can react without a hard page reload
+        window.dispatchEvent(new Event('auth:expired'));
+
+        // Reset the debounce flag after a short delay
+        setTimeout(() => { isLoggingOut = false; }, 2000);
+      }
     }
     return Promise.reject(error);
   }
@@ -267,6 +284,9 @@ export const inventoryService = {
   
   getValue: (): Promise<{ total_value: number }> =>
     api.get('/inventory/value').then(res => res.data),
+
+  getPredictions: (): Promise<{ predictions: StockPrediction[]; analysis_period_days: number }> =>
+    api.get('/inventory/predictions').then(res => res.data),
 };
 
 // Employee Service

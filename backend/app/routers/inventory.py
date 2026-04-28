@@ -191,6 +191,19 @@ def receive_purchase_order(
     return order.to_dict()
 
 
+@router.get("/predictions")
+def get_stock_predictions(
+    db: Session = Depends(get_db),
+    current_user: User = Depends(require_staff)
+):
+    """AI-powered stock depletion predictions based on historical sales data."""
+    predictions = InventoryService.predict_stock_depletion(db)
+    return {
+        "predictions": predictions,
+        "analysis_period_days": 14
+    }
+
+
 @router.get("/value")
 def get_inventory_value(
     db: Session = Depends(get_db),

@@ -36,6 +36,7 @@ const queryClient = new QueryClient({
     queries: {
       retry: 1,
       refetchOnWindowFocus: false,
+      staleTime: 30_000, // 30 seconds — prevents aggressive refetch storms after login
     },
   },
 });

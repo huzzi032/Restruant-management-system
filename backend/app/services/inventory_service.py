@@ -339,3 +339,111 @@ class InventoryService:
         ).filter(InventoryItem.is_active == True).first()
         
         return float(result.total_value or 0)
+
+    @staticmethod
+    def predict_stock_depletion(db: Session, analysis_days: int = 14):
+        """
+        Predict when each inventory item will run out based on historical
+        order data cross-referenced with menu item ingredient links.
+        """
+        from app.models.menu import MenuItemIngredient, MenuItem
+        from app.models.order import Order, OrderItem, OrderStatus
+        from datetime import timedelta, date
+
+        cutoff = datetime.utcnow() - timedelta(days=analysis_days)
+
+        # All active inventory items
+        items = db.query(InventoryItem).filter(InventoryItem.is_active == True).all()
+
+        predictions = []
+
+        for item in items:
+            # Find menu items that use this ingredient
+            ingredient_links = (
+                db.query(MenuItemIngredient)
+                .filter(MenuItemIngredient.inventory_item_id == item.id)
+                .all()
+            )
+
+            if not ingredient_links:
+                # No menu items linked — fall back to transaction-based estimate
+                total_out = (
+                    db.query(func.sum(func.abs(InventoryTransaction.quantity)))
+                    .filter(
+                        InventoryTransaction.inventory_item_id == item.id,
+                        InventoryTransaction.transaction_type.in_(["out", "wastage"]),
+                        InventoryTransaction.created_at >= cutoff,
+                    )
+                    .scalar()
+                ) or 0.0
+
+                daily_usage = total_out / max(analysis_days, 1)
+            else:
+                # Calculate usage from actual orders
+                daily_usage = 0.0
+                linked_menu_names = []
+
+                for link in ingredient_links:
+                    menu_item = db.query(MenuItem).filter(MenuItem.id == link.menu_item_id).first()
+                    if menu_item:
+                        linked_menu_names.append(menu_item.name)
+
+                    # Count how many of this menu item were sold in the period
+                    total_sold = (
+                        db.query(func.sum(OrderItem.quantity))
+                        .join(Order, OrderItem.order_id == Order.id)
+                        .filter(
+                            OrderItem.menu_item_id == link.menu_item_id,
+                            OrderItem.is_voided == False,
+                            Order.status == OrderStatus.COMPLETED,
+                            Order.created_at >= cutoff,
+                        )
+                        .scalar()
+                    ) or 0
+
+                    # Each sale consumes link.quantity_required of this ingredient
+                    daily_usage += (total_sold * link.quantity_required) / max(analysis_days, 1)
+
+            # Calculate days until stockout
+            if daily_usage > 0:
+                days_left = item.quantity / daily_usage
+                stockout_date = date.today() + timedelta(days=int(days_left))
+            else:
+                days_left = 999  # effectively infinite
+                stockout_date = None
+
+            # Determine risk level
+            if days_left <= 3:
+                risk_level = "critical"
+            elif days_left <= 7:
+                risk_level = "warning"
+            else:
+                risk_level = "healthy"
+
+            # Collect linked menu item names
+            if not ingredient_links:
+                menu_names = []
+            else:
+                menu_names = []
+                for link in ingredient_links:
+                    mi = db.query(MenuItem).filter(MenuItem.id == link.menu_item_id).first()
+                    if mi:
+                        menu_names.append(mi.name)
+
+            predictions.append({
+                "item_id": item.id,
+                "item_name": item.name,
+                "current_stock": item.quantity,
+                "unit": item.unit,
+                "daily_usage_rate": round(daily_usage, 2),
+                "days_until_stockout": round(days_left, 1) if days_left < 999 else None,
+                "predicted_stockout_date": stockout_date.isoformat() if stockout_date else None,
+                "risk_level": risk_level,
+                "linked_menu_items": menu_names,
+            })
+
+        # Sort: critical first, then warning, then healthy
+        risk_order = {"critical": 0, "warning": 1, "healthy": 2}
+        predictions.sort(key=lambda p: (risk_order.get(p["risk_level"], 3), p.get("days_until_stockout") or 9999))
+
+        return predictions
