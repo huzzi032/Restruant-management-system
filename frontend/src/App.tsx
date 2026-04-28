@@ -34,7 +34,12 @@ const PublicMenu = lazy(() => import('./pages/PublicMenu'));
 const queryClient = new QueryClient({
   defaultOptions: {
     queries: {
-      retry: 1,
+      retry: (failureCount, error: any) => {
+        // Never retry auth errors — prevents cascading 401 logouts
+        const status = error?.response?.status;
+        if (status === 401 || status === 403) return false;
+        return failureCount < 1;
+      },
       refetchOnWindowFocus: false,
       staleTime: 30_000, // 30 seconds — prevents aggressive refetch storms after login
     },

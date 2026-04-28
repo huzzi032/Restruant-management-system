@@ -20,15 +20,19 @@ import {
   Brain,
   MessageSquare,
   Loader2,
+  AlertTriangle,
+  CheckCircle,
 } from 'lucide-react';
 import { aiService, reportService } from '@/services/api';
-import { format } from 'date-fns';
+import { format, subDays } from 'date-fns';
 import { useAuth } from '@/contexts/AuthContext';
 import { toast } from 'sonner';
 
 export default function Reports() {
   const [date, setDate] = useState<Date>(new Date());
   const [question, setQuestion] = useState('How can I increase today\'s profit?');
+  const [salesFrom, setSalesFrom] = useState<Date>(subDays(new Date(), 30));
+  const [salesTo, setSalesTo] = useState<Date>(new Date());
   const { hasRole } = useAuth();
   const canUseAI = hasRole(['admin', 'manager']);
 
@@ -42,22 +46,49 @@ export default function Reports() {
     queryFn: reportService.getDashboardSummary,
   });
 
+  // Sales report query
+  const { data: salesReport, isFetching: loadingSales, refetch: refetchSales } = useQuery({
+    queryKey: ['sales-report', format(salesFrom, 'yyyy-MM-dd'), format(salesTo, 'yyyy-MM-dd')],
+    queryFn: () => reportService.getSalesReport(format(salesFrom, 'yyyy-MM-dd'), format(salesTo, 'yyyy-MM-dd')),
+  });
+
+  // Inventory report query
+  const { data: inventoryReport, isFetching: loadingInventory } = useQuery({
+    queryKey: ['inventory-report'],
+    queryFn: reportService.getInventoryReport,
+    staleTime: 60000,
+  });
+
+  // Employee report query
+  const { data: employeeReport, isFetching: loadingEmployee } = useQuery({
+    queryKey: ['employee-report'],
+    queryFn: () => reportService.getEmployeeReport(),
+    staleTime: 60000,
+  });
+
+  // AI queries — disabled on mount, triggered manually
   const { data: businessInsights, refetch: refetchInsights, isFetching: loadingInsights } = useQuery({
     queryKey: ['ai-business-insights'],
     queryFn: aiService.getBusinessInsights,
-    enabled: canUseAI,
+    enabled: false,
+    retry: false,
+    staleTime: 300000,
   });
 
   const { data: demandPrediction, refetch: refetchPrediction, isFetching: loadingPrediction } = useQuery({
     queryKey: ['ai-demand-prediction'],
     queryFn: aiService.getDemandPrediction,
-    enabled: canUseAI,
+    enabled: false,
+    retry: false,
+    staleTime: 300000,
   });
 
   const { data: menuOptimization, refetch: refetchOptimization, isFetching: loadingOptimization } = useQuery({
     queryKey: ['ai-menu-optimization'],
     queryFn: aiService.getMenuOptimization,
-    enabled: canUseAI,
+    enabled: false,
+    retry: false,
+    staleTime: 300000,
   });
 
   const chatMutation = useMutation({
@@ -212,37 +243,190 @@ export default function Reports() {
           </Card>
         </TabsContent>
 
-        <TabsContent value="sales">
+        {/* ── SALES TAB ── */}
+        <TabsContent value="sales" className="space-y-4">
           <Card>
-            <CardHeader>
-              <CardTitle>Sales Report</CardTitle>
-            </CardHeader>
-            <CardContent>
-              <p className="text-muted-foreground">Detailed sales reports coming soon...</p>
+            <CardContent className="p-4">
+              <div className="flex flex-col sm:flex-row gap-3 items-start sm:items-center">
+                <span className="text-sm font-medium whitespace-nowrap">From:</span>
+                <DatePicker date={salesFrom} setDate={setSalesFrom} />
+                <span className="text-sm font-medium whitespace-nowrap">To:</span>
+                <DatePicker date={salesTo} setDate={setSalesTo} />
+                <Button size="sm" onClick={() => refetchSales()} disabled={loadingSales}>
+                  {loadingSales ? <Loader2 className="h-4 w-4 animate-spin" /> : 'Apply'}
+                </Button>
+              </div>
             </CardContent>
           </Card>
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+            <Card><CardContent className="p-4 flex items-center gap-3">
+              <DollarSign className="h-8 w-8 text-green-500" />
+              <div><p className="text-sm text-muted-foreground">Total Sales</p><p className="text-2xl font-bold">${salesReport?.total_sales?.toFixed(2) ?? '0.00'}</p></div>
+            </CardContent></Card>
+            <Card><CardContent className="p-4 flex items-center gap-3">
+              <ShoppingCart className="h-8 w-8 text-blue-500" />
+              <div><p className="text-sm text-muted-foreground">Total Orders</p><p className="text-2xl font-bold">{salesReport?.total_orders ?? 0}</p></div>
+            </CardContent></Card>
+            <Card><CardContent className="p-4 flex items-center gap-3">
+              <BarChart3 className="h-8 w-8 text-orange-500" />
+              <div><p className="text-sm text-muted-foreground">Avg Order Value</p><p className="text-2xl font-bold">${salesReport?.average_order_value?.toFixed(2) ?? '0.00'}</p></div>
+            </CardContent></Card>
+          </div>
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+            <Card>
+              <CardHeader><CardTitle className="text-base">Top Selling Items</CardTitle></CardHeader>
+              <CardContent>
+                {salesReport?.top_items?.length === 0 && <p className="text-muted-foreground text-sm">No data for this period.</p>}
+                <div className="space-y-2">
+                  {salesReport?.top_items?.slice(0, 8).map((item: any, i: number) => (
+                    <div key={item.id} className="flex justify-between items-center p-2 rounded bg-muted/40">
+                      <div className="flex items-center gap-2">
+                        <span className="w-6 h-6 rounded-full bg-primary/10 text-xs flex items-center justify-center font-bold">{i + 1}</span>
+                        <span className="text-sm font-medium truncate max-w-[160px]">{item.name}</span>
+                      </div>
+                      <div className="flex gap-4 text-sm shrink-0">
+                        <span className="text-muted-foreground">{item.quantity_sold} sold</span>
+                        <span className="font-semibold">${item.revenue?.toFixed(2)}</span>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </CardContent>
+            </Card>
+            <Card>
+              <CardHeader><CardTitle className="text-base">Sales by Category</CardTitle></CardHeader>
+              <CardContent>
+                {salesReport?.sales_by_category?.length === 0 && <p className="text-muted-foreground text-sm">No data for this period.</p>}
+                <div className="space-y-2">
+                  {salesReport?.sales_by_category?.map((cat: any) => (
+                    <div key={cat.category} className="flex justify-between items-center p-2 rounded bg-muted/40">
+                      <span className="text-sm font-medium">{cat.category}</span>
+                      <div className="flex gap-4 text-sm">
+                        <span className="text-muted-foreground">{cat.quantity} items</span>
+                        <span className="font-semibold">${cat.revenue?.toFixed(2)}</span>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </CardContent>
+            </Card>
+          </div>
         </TabsContent>
 
-        <TabsContent value="inventory">
-          <Card>
-            <CardHeader>
-              <CardTitle>Inventory Report</CardTitle>
-            </CardHeader>
-            <CardContent>
-              <p className="text-muted-foreground">Inventory reports coming soon...</p>
-            </CardContent>
-          </Card>
+        {/* ── INVENTORY TAB ── */}
+        <TabsContent value="inventory" className="space-y-4">
+          {loadingInventory && <div className="flex justify-center py-8"><Loader2 className="h-6 w-6 animate-spin" /></div>}
+          {inventoryReport && (
+            <>
+              <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+                <Card><CardContent className="p-4 flex items-center gap-3">
+                  <Package className="h-8 w-8 text-blue-500" />
+                  <div><p className="text-sm text-muted-foreground">Total Items</p><p className="text-2xl font-bold">{inventoryReport.total_items}</p></div>
+                </CardContent></Card>
+                <Card><CardContent className="p-4 flex items-center gap-3">
+                  <DollarSign className="h-8 w-8 text-green-500" />
+                  <div><p className="text-sm text-muted-foreground">Stock Value</p><p className="text-2xl font-bold">${inventoryReport.total_stock_value?.toFixed(2)}</p></div>
+                </CardContent></Card>
+                <Card><CardContent className="p-4 flex items-center gap-3">
+                  <AlertTriangle className="h-8 w-8 text-yellow-500" />
+                  <div><p className="text-sm text-muted-foreground">Low Stock</p><p className="text-2xl font-bold">{inventoryReport.low_stock_count}</p></div>
+                </CardContent></Card>
+                <Card><CardContent className="p-4 flex items-center gap-3">
+                  <AlertTriangle className="h-8 w-8 text-red-500" />
+                  <div><p className="text-sm text-muted-foreground">Out of Stock</p><p className="text-2xl font-bold">{inventoryReport.out_of_stock_count}</p></div>
+                </CardContent></Card>
+              </div>
+              <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+                <Card>
+                  <CardHeader><CardTitle className="text-base text-yellow-600">Low Stock Items</CardTitle></CardHeader>
+                  <CardContent>
+                    {inventoryReport.low_stock_items?.length === 0 && <p className="text-muted-foreground text-sm">All items are well stocked.</p>}
+                    <div className="space-y-2">
+                      {inventoryReport.low_stock_items?.map((item: any) => (
+                        <div key={item.id} className="flex justify-between items-center p-2 rounded bg-yellow-50 dark:bg-yellow-900/10">
+                          <span className="text-sm font-medium">{item.name}</span>
+                          <div className="flex gap-3 text-sm">
+                            <Badge variant="outline" className="text-yellow-600">{item.quantity} {item.unit}</Badge>
+                            <span className="text-muted-foreground">min: {item.min_stock_level}</span>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  </CardContent>
+                </Card>
+                <Card>
+                  <CardHeader><CardTitle className="text-base text-red-600">Out of Stock</CardTitle></CardHeader>
+                  <CardContent>
+                    {inventoryReport.out_of_stock_items?.length === 0 && <p className="text-sm text-muted-foreground flex items-center gap-2"><CheckCircle className="h-4 w-4 text-green-500" />No items are out of stock.</p>}
+                    <div className="space-y-2">
+                      {inventoryReport.out_of_stock_items?.map((item: any) => (
+                        <div key={item.id} className="flex justify-between items-center p-2 rounded bg-red-50 dark:bg-red-900/10">
+                          <span className="text-sm font-medium">{item.name}</span>
+                          <Badge variant="destructive">Out of Stock</Badge>
+                        </div>
+                      ))}
+                    </div>
+                  </CardContent>
+                </Card>
+              </div>
+            </>
+          )}
         </TabsContent>
 
-        <TabsContent value="employees">
-          <Card>
-            <CardHeader>
-              <CardTitle>Employee Report</CardTitle>
-            </CardHeader>
-            <CardContent>
-              <p className="text-muted-foreground">Employee reports coming soon...</p>
-            </CardContent>
-          </Card>
+        {/* ── EMPLOYEES TAB ── */}
+        <TabsContent value="employees" className="space-y-4">
+          {loadingEmployee && <div className="flex justify-center py-8"><Loader2 className="h-6 w-6 animate-spin" /></div>}
+          {employeeReport && (
+            <>
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                <Card><CardContent className="p-4 flex items-center gap-3">
+                  <Users className="h-8 w-8 text-blue-500" />
+                  <div><p className="text-sm text-muted-foreground">Total Employees</p><p className="text-2xl font-bold">{employeeReport.total_employees}</p></div>
+                </CardContent></Card>
+                <Card><CardContent className="p-4 flex items-center gap-3">
+                  <CheckCircle className="h-8 w-8 text-green-500" />
+                  <div><p className="text-sm text-muted-foreground">Active Employees</p><p className="text-2xl font-bold">{employeeReport.active_employees}</p></div>
+                </CardContent></Card>
+                <Card><CardContent className="p-4 flex items-center gap-3">
+                  <DollarSign className="h-8 w-8 text-purple-500" />
+                  <div><p className="text-sm text-muted-foreground">Total Net Salary</p><p className="text-2xl font-bold">${employeeReport.salary_summary?.total_net?.toFixed(2) ?? '0.00'}</p></div>
+                </CardContent></Card>
+              </div>
+              <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+                <Card>
+                  <CardHeader><CardTitle className="text-base">Attendance Summary ({employeeReport.month}/{employeeReport.year})</CardTitle></CardHeader>
+                  <CardContent>
+                    {Object.keys(employeeReport.attendance_summary ?? {}).length === 0 && <p className="text-muted-foreground text-sm">No attendance records this month.</p>}
+                    <div className="space-y-2">
+                      {Object.entries(employeeReport.attendance_summary ?? {}).map(([status, count]: [string, any]) => (
+                        <div key={status} className="flex justify-between items-center p-2 rounded bg-muted/40">
+                          <span className="text-sm font-medium capitalize">{status}</span>
+                          <Badge variant="secondary">{count} records</Badge>
+                        </div>
+                      ))}
+                    </div>
+                  </CardContent>
+                </Card>
+                <Card>
+                  <CardHeader><CardTitle className="text-base">Salary Summary</CardTitle></CardHeader>
+                  <CardContent className="space-y-3">
+                    <div className="flex justify-between p-2 rounded bg-muted/40">
+                      <span className="text-sm">Total Earnings</span>
+                      <span className="font-semibold text-green-600">${employeeReport.salary_summary?.total_earnings?.toFixed(2) ?? '0.00'}</span>
+                    </div>
+                    <div className="flex justify-between p-2 rounded bg-muted/40">
+                      <span className="text-sm">Total Deductions</span>
+                      <span className="font-semibold text-red-500">${employeeReport.salary_summary?.total_deductions?.toFixed(2) ?? '0.00'}</span>
+                    </div>
+                    <div className="flex justify-between p-2 rounded bg-primary/10">
+                      <span className="text-sm font-medium">Net Payable</span>
+                      <span className="font-bold">${employeeReport.salary_summary?.total_net?.toFixed(2) ?? '0.00'}</span>
+                    </div>
+                  </CardContent>
+                </Card>
+              </div>
+            </>
+          )}
         </TabsContent>
 
         <TabsContent value="ai" className="space-y-4">

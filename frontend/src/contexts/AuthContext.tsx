@@ -1,4 +1,4 @@
-import { createContext, useContext, useState, useEffect, useCallback, type ReactNode } from 'react';
+import { createContext, useContext, useState, useEffect, useCallback, useRef, type ReactNode } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { toast } from 'sonner';
 import type { User, LoginCredentials, AuthResponse } from '@/types';
@@ -20,6 +20,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [user, setUser] = useState<User | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const navigate = useNavigate();
+  // Guard to prevent double-handling of auth expiry
+  const hasHandledExpiry = useRef(false);
 
   const logout = useCallback(() => {
     localStorage.removeItem('token');
@@ -39,17 +41,24 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         setUser(parsed);
 
         // Validate the token against the server in the background.
-        // If the token is expired or invalid the interceptor will fire
-        // the auth:expired event and we'll handle it below.
+        // Only clear session on a definitive 401 (token expired/invalid).
+        // Network errors, 500s, timeouts etc. should NOT log the user out.
         authService.getMe()
           .then((freshUser) => {
             // Update with fresh user data from server
             setUser(freshUser);
             localStorage.setItem('user', JSON.stringify(freshUser));
           })
-          .catch(() => {
-            // Token invalid — clear state (interceptor already cleared localStorage)
-            setUser(null);
+          .catch((err) => {
+            const status = err?.response?.status;
+            if (status === 401) {
+              // Token is genuinely expired/invalid — clear session
+              localStorage.removeItem('token');
+              localStorage.removeItem('user');
+              setUser(null);
+            }
+            // For all other errors (network, 500, timeout) — keep the user logged in
+            // with cached data. The session will be re-validated on the next API call.
           });
       } catch {
         localStorage.removeItem('token');
@@ -62,9 +71,17 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   // Listen for forced-logout events dispatched by the API interceptor
   useEffect(() => {
     const handleAuthExpired = () => {
+      // Guard: only handle once, and only if user was actually logged in
+      if (hasHandledExpiry.current) return;
+      hasHandledExpiry.current = true;
+
       setUser(null);
+      // Don't clear localStorage again — the interceptor already did that
       toast.error('Session expired — please sign in again');
       navigate('/signin');
+
+      // Reset guard after a delay so future real expirations can still be caught
+      setTimeout(() => { hasHandledExpiry.current = false; }, 5000);
     };
 
     window.addEventListener('auth:expired', handleAuthExpired);
@@ -74,6 +91,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const login = async (credentials: LoginCredentials) => {
     try {
       setIsLoading(true);
+      // Reset expiry guard on fresh login
+      hasHandledExpiry.current = false;
+
       const response: AuthResponse = await authService.login({
         restaurant_code: credentials.restaurant_code?.trim().toLowerCase() || undefined,
         username: credentials.username.trim().toLowerCase(),

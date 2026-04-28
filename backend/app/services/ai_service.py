@@ -34,9 +34,9 @@ class AIService:
         return self.client is not None
     
     def _call_groq(self, prompt: str, system_message: str = None) -> str:
-        """Call Groq API"""
+        """Call Groq API with timeout"""
         if not self.client:
-            return "AI service is not available. Please configure GROQ_API_KEY."
+            return "AI service is not configured. Please set a valid GROQ_API_KEY in your environment."
         
         try:
             messages = []
@@ -48,12 +48,21 @@ class AIService:
                 model=self.model,
                 messages=messages,
                 temperature=0.7,
-                max_tokens=1000
+                max_tokens=1000,
+                timeout=60.0  # 60 second timeout
             )
             
             return response.choices[0].message.content
         except Exception as e:
-            return f"Error calling AI service: {str(e)}"
+            error_str = str(e)
+            if "invalid_api_key" in error_str or "Invalid API Key" in error_str or "invalid_api_key" in error_str.lower():
+                return "Your Groq API key is invalid or expired. Please update GROQ_API_KEY in your .env file."
+            if "rate_limit" in error_str.lower():
+                return "AI rate limit reached. Please wait a moment and try again."
+            if "timeout" in error_str.lower() or "timed out" in error_str.lower():
+                return "AI request timed out. The model took too long to respond. Please try again."
+            print(f"Groq API error: {error_str}")
+            return "AI service temporarily unavailable. Please try again later."
     
     def get_business_insights(self, db: Session) -> Dict[str, Any]:
         """Get AI-powered business insights"""

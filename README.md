@@ -347,3 +347,4 @@ python -m uvicorn app.main:app --port 8000 --reload
 
 issues
 alag alag portal nhi bn raha and menu issue
+fix timeout issue and add proper functionality in analytics not want comming soon add their proper functionality instead  and ai is not working in analiytics also fix this 
