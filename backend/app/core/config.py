@@ -6,6 +6,7 @@ import os
 from pydantic_settings import BaseSettings
 from pydantic import field_validator
 from typing import Optional
+from urllib.parse import parse_qsl, urlencode, urlsplit, urlunsplit
 
 
 def _is_vercel() -> bool:
@@ -14,6 +15,20 @@ def _is_vercel() -> bool:
 
 def _default_path(local_path: str, vercel_path: str) -> str:
     return vercel_path if _is_vercel() else local_path
+
+
+def _append_query_param(url: str, key: str, value: str) -> str:
+    if not value:
+        return url
+
+    parts = urlsplit(url)
+    query_params = dict(parse_qsl(parts.query, keep_blank_values=True))
+    if key in query_params:
+        return url
+
+    query_params[key] = value
+    new_query = urlencode(query_params)
+    return urlunsplit((parts.scheme, parts.netloc, parts.path, new_query, parts.fragment))
 
 
 class Settings(BaseSettings):
@@ -31,7 +46,9 @@ class Settings(BaseSettings):
     
     # Database
     DATABASE_URL: str = (
-        os.getenv("DATABASE_URL")
+        os.getenv("DATABASE_POOL_URL")
+        or os.getenv("SUPABASE_POOLER_URL")
+        or os.getenv("DATABASE_URL")
         or os.getenv("POSTGRES_URL")
         or _default_path("sqlite:///./restaurant.db", "sqlite:////tmp/restaurant.db")
     )
@@ -61,6 +78,11 @@ class Settings(BaseSettings):
             elif "sslmode" not in url and "?" in url:
                 # URL already has query params, append sslmode
                 url = url + "&sslmode=require"
+
+            # Optional IPv4 override for serverless environments that lack IPv6 egress.
+            hostaddr = os.getenv("DATABASE_HOSTADDR") or os.getenv("PGHOSTADDR")
+            if hostaddr:
+                url = _append_query_param(url, "hostaddr", hostaddr)
 
         if _is_vercel() and url.startswith("sqlite"):
             # Vercel's deployment filesystem is read-only except /tmp.

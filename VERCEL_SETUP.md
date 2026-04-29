@@ -15,6 +15,15 @@ Value: postgresql+psycopg2://postgres:Free%40Test%4012@db.flkckohuxiyqgccfwohd.s
 Environment: Production
 ```
 
+**Recommended for Vercel (serverless): use Supabase pooler**
+```
+Name: DATABASE_POOL_URL
+Value: postgresql+psycopg2://postgres:YOUR_PASSWORD@aws-0-<region>.pooler.supabase.com:6543/postgres?sslmode=require
+Environment: Production
+```
+
+If `DATABASE_POOL_URL` is set, the app will use it instead of `DATABASE_URL`.
+
 **Important Notes:**
 - Replace `postgres:Free%40Test%4012` with your actual Supabase credentials
 - The `%40` is URL-encoded `@` - if your password has special characters, URL-encode them
@@ -83,6 +92,11 @@ postgresql://postgres:Free@Test@12@db.flkckohuxiyqgccfwohd.supabase.co:5432/post
 postgresql+psycopg2://postgres:Free%40Test%4012@db.flkckohuxiyqgccfwohd.supabase.co:5432/postgres?sslmode=require
 ```
 
+**Pooler connection (recommended for Vercel):**
+```
+postgresql+psycopg2://postgres:YOUR_PASSWORD@aws-0-<region>.pooler.supabase.com:6543/postgres?sslmode=require
+```
+
 **URL Encoding for Special Characters:**
 - `@` → `%40`
 - `:` → `%3A`
@@ -126,10 +140,11 @@ After deployment completes:
 ## Troubleshooting
 
 ### Error: "Cannot assign requested address"
-- Supabase database is unreachable
-- Check that `sslmode=require` is in the DATABASE_URL
-- Verify the Supabase connection credentials
-- Make sure your Supabase project allows connections from Vercel IPs
+- Supabase host resolves to IPv6 and the runtime cannot connect over IPv6
+- Use the Supabase pooler host (recommended) and set `DATABASE_POOL_URL`
+- Or set `DATABASE_HOSTADDR` to the Supabase IPv4 address and keep `DATABASE_URL`
+- Keep `sslmode=require` in the URL
+- Verify the Supabase credentials and project status
 
 ### Error: "Database service temporarily unavailable"
 - DATABASE_URL is not set in Vercel environment variables
