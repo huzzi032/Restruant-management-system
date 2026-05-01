@@ -47,6 +47,7 @@ class Settings(BaseSettings):
     # Database
     DATABASE_URL: str = (
         os.getenv("DATABASE_POOL_URL")
+        or os.getenv("DATABASE_POOLER_URL")
         or os.getenv("SUPABASE_POOLER_URL")
         or os.getenv("DATABASE_URL")
         or os.getenv("POSTGRES_URL")
