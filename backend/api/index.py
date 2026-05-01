@@ -5,23 +5,26 @@ import os
 # Add the backend directory to sys.path so 'app' can be imported correctly
 sys.path.append(os.path.join(os.path.dirname(__file__), ".."))
 
+from fastapi import FastAPI
+
+# Default app so Vercel can always detect a top-level entrypoint.
+app = FastAPI()
+
 try:
-    from app.main import app
-    handler = app
+    from app.main import app as real_app
+    app = real_app
 except ImportError as exc:
-    # Fallback to a simple app for debugging if import fails
-    from fastapi import FastAPI
-    app = FastAPI()
-    
-    # Store error details in a variable that is accessible to the route
     error_details = str(exc)
     current_path = sys.path
-    
+
     @app.get("/")
     def root():
         return {
-            "error": "Import failed", 
-            "details": error_details, 
-            "path": current_path
+            "error": "Import failed",
+            "details": error_details,
+            "path": current_path,
         }
-    handler = app
+
+# Explicit aliases for the Vercel runtime.
+handler = app
+application = app
