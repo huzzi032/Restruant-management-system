@@ -129,6 +129,7 @@ function AIInsightCard({ insight, index }: { insight: AIInsight; index: number }
 }
 
 export default function Dashboard() {
+  const [insights, setInsights] = useState<AIInsight[]>([]);
   const { user, hasRole } = useAuth();
   const canUseAI = hasRole(['admin', 'manager']);
 
@@ -148,7 +149,13 @@ export default function Dashboard() {
     queryFn: () => orderService.getOrders({ limit: 12 }),
   });
 
-  const insights = canUseAI ? (aiInsightsData?.insights || []) : [];
+  useEffect(() => {
+    if (aiInsightsData?.insights) {
+      setInsights(aiInsightsData.insights);
+    } else if (!canUseAI) {
+      setInsights([]);
+    }
+  }, [aiInsightsData, canUseAI]);
 
   const handleRefresh = async () => {
     toast.promise(

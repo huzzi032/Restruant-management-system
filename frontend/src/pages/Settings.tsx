@@ -200,18 +200,18 @@ export default function SettingsPage() {
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <div className="space-y-2">
                   <Label>Restaurant Name (Display & Bills)</Label>
-                  <Input 
-                    placeholder="Your Restaurant Name" 
+                  <Input
+                    placeholder="Your Restaurant Name"
                     value={resName}
-                    onChange={(e: React.ChangeEvent<HTMLInputElement>) => setResName(e.target.value)}
+                    onChange={(e) => setResName(e.target.value)}
                   />
                 </div>
                 <div className="space-y-2">
                   <Label>Restaurant Logo URL</Label>
-                  <Input 
-                    placeholder="https://example.com/logo.png" 
+                  <Input
+                    placeholder="https://example.com/logo.png"
                     value={resLogo}
-                    onChange={(e: React.ChangeEvent<HTMLInputElement>) => setResLogo(e.target.value)}
+                    onChange={(e) => setResLogo(e.target.value)}
                   />
                   {resLogo && (
                     <div className="mt-2 p-2 border rounded-md w-fit bg-muted/50">
@@ -256,7 +256,7 @@ export default function SettingsPage() {
                     max="100"
                     step="0.1"
                     value={String((Number(businessForm.tax_rate || '0') * 100).toFixed(2))}
-                    onChange={(e: React.ChangeEvent<HTMLInputElement>) => {
+                    onChange={(e) => {
                       const percentage = Number(e.target.value || '0');
                       setBusinessForm((prev) => ({ ...prev, tax_rate: String(percentage / 100) }));
                     }}
