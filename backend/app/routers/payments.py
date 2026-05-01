@@ -28,21 +28,23 @@ def get_payments(
     db: Session = Depends(get_db),
     current_user: User = Depends(require_cashier)
 ):
-    """Get payments (cashier and above)"""
-    query = db.query(Payment).join(Order)
-    
+    """Get payments (cashier and above) — scoped to current restaurant"""
+    query = db.query(Payment).join(Order).filter(
+        Order.restaurant_id == current_user.restaurant_id
+    )
+
     if status:
         query = query.filter(Payment.status == status)
-    
+
     if payment_method:
         query = query.filter(Payment.payment_method == payment_method)
-    
+
     if date_from:
         query = query.filter(Payment.created_at >= date_from)
-    
+
     if date_to:
         query = query.filter(Payment.created_at <= date_to)
-    
+
     payments = query.order_by(Payment.created_at.desc()).offset(skip).limit(limit).all()
     return [payment.to_dict() for payment in payments]
 
@@ -53,8 +55,13 @@ def get_payment(
     db: Session = Depends(get_db),
     current_user: User = Depends(require_cashier)
 ):
-    """Get payment by ID"""
-    payment = db.query(Payment).filter(Payment.id == payment_id).first()
+    """Get payment by ID (scoped to current restaurant)"""
+    payment = (
+        db.query(Payment)
+        .join(Order)
+        .filter(Payment.id == payment_id, Order.restaurant_id == current_user.restaurant_id)
+        .first()
+    )
     if not payment:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
@@ -72,7 +79,10 @@ def create_payment(
 ):
     """Process payment for an order (cashier and above)"""
     # Get order
-    order = db.query(Order).filter(Order.id == payment_data.order_id).first()
+    order = db.query(Order).filter(
+        Order.id == payment_data.order_id,
+        Order.restaurant_id == current_user.restaurant_id,
+    ).first()
     if not order:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
@@ -146,7 +156,12 @@ def get_payment_receipt(
     current_user: User = Depends(require_cashier)
 ):
     """Get printable receipt payload for a payment."""
-    payment = db.query(Payment).join(Order).filter(Payment.id == payment_id).first()
+    payment = (
+        db.query(Payment)
+        .join(Order)
+        .filter(Payment.id == payment_id, Order.restaurant_id == current_user.restaurant_id)
+        .first()
+    )
     if not payment:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
@@ -181,7 +196,12 @@ def update_payment(
     current_user: User = Depends(require_cashier)
 ):
     """Update payment (cashier and above)"""
-    payment = db.query(Payment).filter(Payment.id == payment_id).first()
+    payment = (
+        db.query(Payment)
+        .join(Order)
+        .filter(Payment.id == payment_id, Order.restaurant_id == current_user.restaurant_id)
+        .first()
+    )
     if not payment:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
@@ -205,7 +225,12 @@ def process_refund(
     current_user: User = Depends(require_cashier)
 ):
     """Process refund (cashier and above)"""
-    payment = db.query(Payment).filter(Payment.id == payment_id).first()
+    payment = (
+        db.query(Payment)
+        .join(Order)
+        .filter(Payment.id == payment_id, Order.restaurant_id == current_user.restaurant_id)
+        .first()
+    )
     if not payment:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
@@ -242,15 +267,22 @@ def get_daily_payment_summary(
     
     from sqlalchemy import func
     
-    summary = db.query(
-        Payment.payment_method,
-        func.count(Payment.id).label('transaction_count'),
-        func.sum(Payment.total_amount).label('total_amount')
-    ).filter(
-        Payment.status == PaymentStatus.COMPLETED,
-        Payment.created_at >= report_date,
-        Payment.created_at < report_date + timedelta(days=1)
-    ).group_by(Payment.payment_method).all()
+    summary = (
+        db.query(
+            Payment.payment_method,
+            func.count(Payment.id).label("transaction_count"),
+            func.sum(Payment.total_amount).label("total_amount"),
+        )
+        .join(Order)
+        .filter(
+            Payment.status == PaymentStatus.COMPLETED,
+            Order.restaurant_id == current_user.restaurant_id,
+            Payment.created_at >= report_date,
+            Payment.created_at < report_date + timedelta(days=1),
+        )
+        .group_by(Payment.payment_method)
+        .all()
+    )
     
     return {
         "date": report_date.isoformat(),

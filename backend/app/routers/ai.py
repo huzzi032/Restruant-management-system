@@ -1,8 +1,9 @@
 """
-AI Insights router
+AI Insights router — tenant-scoped by current user's restaurant_id.
 """
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, HTTPException, status, Body
 from sqlalchemy.orm import Session
+from pydantic import BaseModel
 
 from app.core.database import get_db
 from app.core.security import get_current_user, require_manager
@@ -12,17 +13,24 @@ from app.models.user import User
 router = APIRouter()
 
 
+class ChatRequest(BaseModel):
+    question: str
+
+
 @router.get("/insights")
 def get_business_insights(
     db: Session = Depends(get_db),
-    current_user: User = Depends(require_manager)
+    current_user: User = Depends(require_manager),
 ):
     """Get AI-powered business insights (manager and above)"""
     try:
         ai_service = AIService()
         if not ai_service.is_available():
-            return {"insights": "AI service is not available. Please configure GROQ_API_KEY in your environment.", "data": {}}
-        return ai_service.get_business_insights(db)
+            return {
+                "insights": "AI service is not available. Please configure GROQ_API_KEY in your environment.",
+                "data": {},
+            }
+        return ai_service.get_business_insights(db, current_user.restaurant_id)
     except Exception as e:
         return {"insights": f"Failed to generate insights: {str(e)}", "data": {}}
 
@@ -30,60 +38,87 @@ def get_business_insights(
 @router.get("/demand-prediction")
 def get_demand_prediction(
     db: Session = Depends(get_db),
-    current_user: User = Depends(require_manager)
+    current_user: User = Depends(require_manager),
 ):
     """Get demand prediction and restocking suggestions (manager and above)"""
     try:
         ai_service = AIService()
         if not ai_service.is_available():
-            return {"prediction": "AI service is not available. Please configure GROQ_API_KEY in your environment.", "low_stock_items": [], "sales_trend": {}}
-        return ai_service.get_demand_prediction(db)
+            return {
+                "prediction": "AI service is not available. Please configure GROQ_API_KEY in your environment.",
+                "low_stock_items": [],
+                "sales_trend": {},
+            }
+        return ai_service.get_demand_prediction(db, current_user.restaurant_id)
     except Exception as e:
-        return {"prediction": f"Failed to generate prediction: {str(e)}", "low_stock_items": [], "sales_trend": {}}
+        return {
+            "prediction": f"Failed to generate prediction: {str(e)}",
+            "low_stock_items": [],
+            "sales_trend": {},
+        }
 
 
 @router.get("/menu-optimization")
 def get_menu_optimization(
     db: Session = Depends(get_db),
-    current_user: User = Depends(require_manager)
+    current_user: User = Depends(require_manager),
 ):
     """Get menu optimization suggestions (manager and above)"""
     try:
         ai_service = AIService()
         if not ai_service.is_available():
-            return {"suggestions": "AI service is not available. Please configure GROQ_API_KEY in your environment.", "top_items": [], "bottom_items": []}
-        return ai_service.get_menu_optimization(db)
+            return {
+                "suggestions": "AI service is not available. Please configure GROQ_API_KEY in your environment.",
+                "top_items": [],
+                "bottom_items": [],
+            }
+        return ai_service.get_menu_optimization(db, current_user.restaurant_id)
     except Exception as e:
-        return {"suggestions": f"Failed to generate suggestions: {str(e)}", "top_items": [], "bottom_items": []}
+        return {
+            "suggestions": f"Failed to generate suggestions: {str(e)}",
+            "top_items": [],
+            "bottom_items": [],
+        }
 
 
 @router.post("/chat")
 def chat_assistant(
-    question: str,
+    payload: ChatRequest,
     db: Session = Depends(get_db),
-    current_user: User = Depends(require_manager)
+    current_user: User = Depends(require_manager),
 ):
     """AI chat assistant (manager and above)"""
     try:
         ai_service = AIService()
         if not ai_service.is_available():
-            return {"question": question, "answer": "AI service is not available. Please configure GROQ_API_KEY in your environment.", "context": ""}
-        return ai_service.chat_assistant(db, question)
+            return {
+                "question": payload.question,
+                "answer": "AI service is not available. Please configure GROQ_API_KEY in your environment.",
+                "context": "",
+            }
+        return ai_service.chat_assistant(db, payload.question, current_user.restaurant_id)
     except Exception as e:
-        return {"question": question, "answer": f"Failed to get AI response: {str(e)}", "context": ""}
+        return {
+            "question": payload.question,
+            "answer": f"Failed to get AI response: {str(e)}",
+            "context": "",
+        }
 
 
 @router.get("/daily-briefing")
 def get_daily_briefing(
     db: Session = Depends(get_db),
-    current_user: User = Depends(require_manager)
+    current_user: User = Depends(require_manager),
 ):
     """Get daily business briefing (manager and above)"""
     try:
         ai_service = AIService()
         if not ai_service.is_available():
-            return {"briefing": "AI service is not available. Please configure GROQ_API_KEY in your environment.", "data": {}}
-        return ai_service.get_daily_briefing(db)
+            return {
+                "briefing": "AI service is not available. Please configure GROQ_API_KEY in your environment.",
+                "data": {},
+            }
+        return ai_service.get_daily_briefing(db, current_user.restaurant_id)
     except Exception as e:
         return {"briefing": f"Failed to generate briefing: {str(e)}", "data": {}}
 
@@ -91,12 +126,12 @@ def get_daily_briefing(
 @router.get("/dashboard-insights")
 def get_dashboard_insights(
     db: Session = Depends(get_db),
-    current_user: User = Depends(require_manager)
+    current_user: User = Depends(require_manager),
 ):
     """Get AI insights summary for dashboard (manager and above)"""
     try:
         ai_service = AIService()
-        insights = ai_service.get_ai_insights_summary(db)
+        insights = ai_service.get_ai_insights_summary(db, current_user.restaurant_id)
         return {"insights": insights}
     except Exception as e:
         return {"insights": []}

@@ -44,8 +44,7 @@ class OrderItemResponse(OrderItemBase):
     is_voided: bool
     created_at: Optional[datetime] = None
     
-    class Config:
-        from_attributes = True
+    model_config = {"from_attributes": True}
 
 
 # Order Schemas
@@ -108,8 +107,7 @@ class OrderResponse(OrderBase):
     picked_up_by: Optional[int] = None
     picked_up_by_name: Optional[str] = None
     
-    class Config:
-        from_attributes = True
+    model_config = {"from_attributes": True}
 
 
 class OrderFilter(BaseModel):

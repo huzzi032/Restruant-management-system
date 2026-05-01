@@ -54,8 +54,7 @@ class ExpenseResponse(ExpenseBase):
     created_by: Optional[int] = None
     created_at: Optional[datetime] = None
     
-    class Config:
-        from_attributes = True
+    model_config = {"from_attributes": True}
 
 
 # Supplier Schemas
@@ -91,5 +90,4 @@ class SupplierResponse(SupplierBase):
     id: int
     created_at: Optional[datetime] = None
     
-    class Config:
-        from_attributes = True
+    model_config = {"from_attributes": True}

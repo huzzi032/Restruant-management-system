@@ -220,9 +220,9 @@ export default function OrderTaking() {
 
   const filteredActiveOrders = activeOrders?.filter(o => {
     const s = activeOrderSearch.toLowerCase();
-    return String(o.order_number || '').toLowerCase().includes(s) || 
-           String(o.table_number || '').toLowerCase().includes(s) ||
-           String(o.customer_name || '').toLowerCase().includes(s);
+    return String(o.order_number || '').toLowerCase().includes(s) ||
+      String(o.table_number || '').toLowerCase().includes(s) ||
+      String(o.customer_name || '').toLowerCase().includes(s);
   });
 
   const addToCart = (item: MenuItem) => {

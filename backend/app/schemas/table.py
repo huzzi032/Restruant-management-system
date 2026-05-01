@@ -37,5 +37,4 @@ class TableResponse(TableBase):
     status: TableStatus
     current_order_id: Optional[int] = None
     
-    class Config:
-        from_attributes = True
+    model_config = {"from_attributes": True}

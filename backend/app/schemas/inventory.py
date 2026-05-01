@@ -53,8 +53,7 @@ class InventoryItemResponse(InventoryItemBase):
     stock_status: str
     created_at: Optional[datetime] = None
     
-    class Config:
-        from_attributes = True
+    model_config = {"from_attributes": True}
 
 
 # Inventory Transaction Schemas
@@ -79,8 +78,7 @@ class InventoryTransactionResponse(InventoryTransactionBase):
     created_by: Optional[int] = None
     created_at: Optional[datetime] = None
     
-    class Config:
-        from_attributes = True
+    model_config = {"from_attributes": True}
 
 
 # Purchase Order Schemas
@@ -115,5 +113,4 @@ class PurchaseOrderResponse(PurchaseOrderBase):
     order_date: Optional[datetime] = None
     received_date: Optional[datetime] = None
     
-    class Config:
-        from_attributes = True
+    model_config = {"from_attributes": True}

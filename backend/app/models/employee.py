@@ -29,6 +29,10 @@ class Employee(Base):
     __tablename__ = "employees"
     
     id = Column(Integer, primary_key=True, index=True)
+    
+    # Tenant isolation
+    restaurant_id = Column(Integer, ForeignKey("restaurants.id"), nullable=True, index=True)
+
     employee_code = Column(String(50), unique=True, nullable=False)
     
     # Personal info

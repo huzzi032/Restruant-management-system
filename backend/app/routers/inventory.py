@@ -1,5 +1,5 @@
 """
-Inventory management router
+Inventory management router — tenant-scoped by current user's restaurant_id.
 """
 from fastapi import APIRouter, Depends, HTTPException, status, Query
 from sqlalchemy.orm import Session
@@ -10,7 +10,7 @@ from app.core.security import get_current_user, require_staff, require_manager
 from app.schemas.inventory import (
     InventoryItemCreate, InventoryItemUpdate, InventoryItemResponse,
     InventoryTransactionCreate, InventoryTransactionResponse,
-    PurchaseOrderCreate, PurchaseOrderUpdate, PurchaseOrderResponse
+    PurchaseOrderCreate, PurchaseOrderUpdate, PurchaseOrderResponse,
 )
 from app.services.inventory_service import InventoryService
 from app.models.user import User
@@ -26,14 +26,15 @@ def get_inventory_items(
     is_active: bool = Query(True),
     search: Optional[str] = Query(None),
     db: Session = Depends(get_db),
-    current_user: User = Depends(require_staff)
+    current_user: User = Depends(require_staff),
 ):
-    """Get inventory items"""
+    """Get inventory items (scoped to current restaurant)."""
     items = InventoryService.get_items(
         db,
+        restaurant_id=current_user.restaurant_id,
         low_stock_only=low_stock_only,
         is_active=is_active,
-        search=search
+        search=search,
     )
     return [item.to_dict() for item in items]
 
@@ -41,10 +42,10 @@ def get_inventory_items(
 @router.get("/items/low-stock")
 def get_low_stock_items(
     db: Session = Depends(get_db),
-    current_user: User = Depends(require_staff)
+    current_user: User = Depends(require_staff),
 ):
-    """Get low stock items"""
-    items = InventoryService.get_low_stock_items(db)
+    """Get low stock items (scoped to current restaurant)."""
+    items = InventoryService.get_low_stock_items(db, current_user.restaurant_id)
     return {"low_stock_items": [item.to_dict() for item in items], "count": len(items)}
 
 
@@ -52,15 +53,12 @@ def get_low_stock_items(
 def get_inventory_item(
     item_id: int,
     db: Session = Depends(get_db),
-    current_user: User = Depends(require_staff)
+    current_user: User = Depends(require_staff),
 ):
-    """Get inventory item by ID"""
-    item = InventoryService.get_item_by_id(db, item_id)
+    """Get inventory item by ID (scoped to current restaurant)."""
+    item = InventoryService.get_item_by_id(db, item_id, current_user.restaurant_id)
     if not item:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail="Inventory item not found"
-        )
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Inventory item not found")
     return item.to_dict()
 
 
@@ -68,10 +66,10 @@ def get_inventory_item(
 def create_inventory_item(
     item_data: InventoryItemCreate,
     db: Session = Depends(get_db),
-    current_user: User = Depends(require_manager)
+    current_user: User = Depends(require_manager),
 ):
-    """Create new inventory item (manager and above)"""
-    item = InventoryService.create_item(db, item_data)
+    """Create new inventory item (manager and above)."""
+    item = InventoryService.create_item(db, item_data, current_user.restaurant_id)
     return item.to_dict()
 
 
@@ -80,10 +78,10 @@ def update_inventory_item(
     item_id: int,
     item_data: InventoryItemUpdate,
     db: Session = Depends(get_db),
-    current_user: User = Depends(require_manager)
+    current_user: User = Depends(require_manager),
 ):
-    """Update inventory item (manager and above)"""
-    item = InventoryService.update_item(db, item_id, item_data)
+    """Update inventory item (manager and above)."""
+    item = InventoryService.update_item(db, item_id, item_data, current_user.restaurant_id)
     return item.to_dict()
 
 
@@ -91,10 +89,10 @@ def update_inventory_item(
 def delete_inventory_item(
     item_id: int,
     db: Session = Depends(get_db),
-    current_user: User = Depends(require_manager)
+    current_user: User = Depends(require_manager),
 ):
-    """Delete (deactivate) inventory item (manager and above)"""
-    InventoryService.delete_item(db, item_id)
+    """Delete (deactivate) inventory item (manager and above)."""
+    InventoryService.delete_item(db, item_id, current_user.restaurant_id)
     return {"message": "Inventory item deactivated successfully"}
 
 
@@ -107,10 +105,12 @@ def add_stock(
     unit_cost: float = Query(..., gt=0),
     notes: str = Query(None),
     db: Session = Depends(get_db),
-    current_user: User = Depends(require_manager)
+    current_user: User = Depends(require_manager),
 ):
-    """Add stock to inventory"""
-    item = InventoryService.add_stock(db, item_id, quantity, unit_cost, notes, current_user.id)
+    """Add stock to inventory."""
+    item = InventoryService.add_stock(
+        db, item_id, quantity, unit_cost, notes, current_user.id, current_user.restaurant_id
+    )
     return item.to_dict()
 
 
@@ -120,10 +120,12 @@ def adjust_stock(
     new_quantity: float = Query(..., ge=0),
     reason: str = Query(...),
     db: Session = Depends(get_db),
-    current_user: User = Depends(require_manager)
+    current_user: User = Depends(require_manager),
 ):
-    """Adjust inventory quantity"""
-    item = InventoryService.adjust_stock(db, item_id, new_quantity, reason, current_user.id)
+    """Adjust inventory quantity."""
+    item = InventoryService.adjust_stock(
+        db, item_id, new_quantity, reason, current_user.id, current_user.restaurant_id
+    )
     return item.to_dict()
 
 
@@ -133,10 +135,12 @@ def record_wastage(
     quantity: float = Query(..., gt=0),
     reason: str = Query(...),
     db: Session = Depends(get_db),
-    current_user: User = Depends(require_manager)
+    current_user: User = Depends(require_manager),
 ):
-    """Record inventory wastage"""
-    item = InventoryService.record_wastage(db, item_id, quantity, reason, current_user.id)
+    """Record inventory wastage."""
+    item = InventoryService.record_wastage(
+        db, item_id, quantity, reason, current_user.id, current_user.restaurant_id
+    )
     return item.to_dict()
 
 
@@ -148,10 +152,12 @@ def get_transactions(
     transaction_type: Optional[str] = Query(None),
     limit: int = Query(100, ge=1, le=1000),
     db: Session = Depends(get_db),
-    current_user: User = Depends(require_staff)
+    current_user: User = Depends(require_staff),
 ):
-    """Get inventory transactions"""
-    transactions = InventoryService.get_transactions(db, item_id, transaction_type, limit)
+    """Get inventory transactions (scoped to current restaurant)."""
+    transactions = InventoryService.get_transactions(
+        db, item_id, transaction_type, limit, current_user.restaurant_id
+    )
     return [t.to_dict() for t in transactions]
 
 
@@ -162,10 +168,12 @@ def get_purchase_orders(
     status: Optional[str] = Query(None),
     item_id: Optional[int] = Query(None),
     db: Session = Depends(get_db),
-    current_user: User = Depends(require_staff)
+    current_user: User = Depends(require_staff),
 ):
-    """Get purchase orders"""
-    orders = InventoryService.get_purchase_orders(db, status, item_id)
+    """Get purchase orders (scoped to current restaurant)."""
+    orders = InventoryService.get_purchase_orders(
+        db, status, item_id, current_user.restaurant_id
+    )
     return [order.to_dict() for order in orders]
 
 
@@ -173,10 +181,12 @@ def get_purchase_orders(
 def create_purchase_order(
     order_data: PurchaseOrderCreate,
     db: Session = Depends(get_db),
-    current_user: User = Depends(require_manager)
+    current_user: User = Depends(require_manager),
 ):
-    """Create purchase order (manager and above)"""
-    order = InventoryService.create_purchase_order(db, order_data)
+    """Create purchase order (manager and above)."""
+    order = InventoryService.create_purchase_order(
+        db, order_data, current_user.restaurant_id
+    )
     return order.to_dict()
 
 
@@ -184,31 +194,30 @@ def create_purchase_order(
 def receive_purchase_order(
     order_id: int,
     db: Session = Depends(get_db),
-    current_user: User = Depends(require_manager)
+    current_user: User = Depends(require_manager),
 ):
-    """Receive purchase order (manager and above)"""
-    order = InventoryService.receive_purchase_order(db, order_id, current_user.id)
+    """Receive purchase order (manager and above)."""
+    order = InventoryService.receive_purchase_order(
+        db, order_id, current_user.id, current_user.restaurant_id
+    )
     return order.to_dict()
 
 
 @router.get("/predictions")
 def get_stock_predictions(
     db: Session = Depends(get_db),
-    current_user: User = Depends(require_staff)
+    current_user: User = Depends(require_staff),
 ):
-    """AI-powered stock depletion predictions based on historical sales data."""
-    predictions = InventoryService.predict_stock_depletion(db)
-    return {
-        "predictions": predictions,
-        "analysis_period_days": 14
-    }
+    """AI-powered stock depletion predictions (scoped to current restaurant)."""
+    predictions = InventoryService.predict_stock_depletion(db, restaurant_id=current_user.restaurant_id)
+    return {"predictions": predictions, "analysis_period_days": 14}
 
 
 @router.get("/value")
 def get_inventory_value(
     db: Session = Depends(get_db),
-    current_user: User = Depends(require_manager)
+    current_user: User = Depends(require_manager),
 ):
-    """Get total inventory value"""
-    value = InventoryService.get_inventory_value(db)
+    """Get total inventory value (scoped to current restaurant)."""
+    value = InventoryService.get_inventory_value(db, current_user.restaurant_id)
     return {"total_value": round(value, 2)}

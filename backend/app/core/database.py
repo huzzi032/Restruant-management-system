@@ -2,8 +2,7 @@
 Database configuration and session management
 """
 from sqlalchemy import create_engine, event, pool
-from sqlalchemy.ext.declarative import declarative_base
-from sqlalchemy.orm import sessionmaker, Session
+from sqlalchemy.orm import declarative_base, sessionmaker, Session
 from sqlalchemy.pool import StaticPool, NullPool
 from contextlib import contextmanager
 import os
@@ -143,6 +142,10 @@ def _ensure_restaurant_columns():
         "menu_items": ["restaurant_id"],
         "tables": ["restaurant_id"],
         "orders": ["restaurant_id"],
+        # New tenant columns added for full multi-tenancy
+        "expenses": ["restaurant_id"],
+        "inventory_items": ["restaurant_id"],
+        "employees": ["restaurant_id"],
     }
 
     with engine.begin() as connection:

@@ -21,6 +21,10 @@ class InventoryItem(Base):
     __tablename__ = "inventory_items"
     
     id = Column(Integer, primary_key=True, index=True)
+    
+    # Tenant isolation
+    restaurant_id = Column(Integer, ForeignKey("restaurants.id"), nullable=True, index=True)
+
     name = Column(String(200), nullable=False)
     description = Column(Text, nullable=True)
     

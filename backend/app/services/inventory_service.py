@@ -17,9 +17,12 @@ class InventoryService:
     # ========== Inventory Item Methods ==========
     
     @staticmethod
-    def create_item(db: Session, item_data: InventoryItemCreate):
+    def create_item(db: Session, item_data: InventoryItemCreate, restaurant_id: int = None):
         """Create a new inventory item"""
-        db_item = InventoryItem(**item_data.model_dump())
+        data = item_data.model_dump()
+        if restaurant_id:
+            data["restaurant_id"] = restaurant_id
+        db_item = InventoryItem(**data)
         db.add(db_item)
         db.commit()
         db.refresh(db_item)
@@ -28,39 +31,49 @@ class InventoryService:
     @staticmethod
     def get_items(
         db: Session,
+        restaurant_id: int = None,
         low_stock_only: bool = False,
         is_active: bool = True,
         search: Optional[str] = None
     ):
-        """Get inventory items with filtering"""
+        """Get inventory items with filtering (scoped to restaurant)"""
         query = db.query(InventoryItem).options(
             joinedload(InventoryItem.supplier)
         )
-        
+
+        if restaurant_id:
+            query = query.filter(InventoryItem.restaurant_id == restaurant_id)
+
         if is_active:
             query = query.filter(InventoryItem.is_active == True)
-        
+
         if low_stock_only:
             query = query.filter(
                 InventoryItem.quantity <= InventoryItem.min_stock_level
             )
-        
+
         if search:
             query = query.filter(InventoryItem.name.ilike(f"%{search}%"))
-        
+
         return query.order_by(InventoryItem.name).all()
     
     @staticmethod
-    def get_item_by_id(db: Session, item_id: int):
-        """Get inventory item by ID"""
-        return db.query(InventoryItem).options(
+    def get_item_by_id(db: Session, item_id: int, restaurant_id: int = None):
+        """Get inventory item by ID (scoped to restaurant)"""
+        query = db.query(InventoryItem).options(
             joinedload(InventoryItem.supplier)
-        ).filter(InventoryItem.id == item_id).first()
+        ).filter(InventoryItem.id == item_id)
+        if restaurant_id:
+            query = query.filter(InventoryItem.restaurant_id == restaurant_id)
+        return query.first()
     
     @staticmethod
-    def update_item(db: Session, item_id: int, item_data: InventoryItemUpdate):
-        """Update inventory item"""
-        item = db.query(InventoryItem).filter(InventoryItem.id == item_id).first()
+    def update_item(db: Session, item_id: int, item_data: InventoryItemUpdate, restaurant_id: int = None):
+        """Update inventory item (scoped to restaurant)"""
+        query = db.query(InventoryItem).filter(InventoryItem.id == item_id)
+        if restaurant_id:
+            query = query.filter(InventoryItem.restaurant_id == restaurant_id)
+        item = query.first()
         
         if not item:
             raise HTTPException(
@@ -78,9 +91,12 @@ class InventoryService:
         return item
     
     @staticmethod
-    def delete_item(db: Session, item_id: int):
-        """Delete (deactivate) inventory item"""
-        item = db.query(InventoryItem).filter(InventoryItem.id == item_id).first()
+    def delete_item(db: Session, item_id: int, restaurant_id: int = None):
+        """Delete (deactivate) inventory item (scoped to restaurant)"""
+        query = db.query(InventoryItem).filter(InventoryItem.id == item_id)
+        if restaurant_id:
+            query = query.filter(InventoryItem.restaurant_id == restaurant_id)
+        item = query.first()
         
         if not item:
             raise HTTPException(
@@ -101,10 +117,14 @@ class InventoryService:
         quantity: float,
         unit_cost: float,
         notes: str = None,
-        created_by: int = None
+        created_by: int = None,
+        restaurant_id: int = None,
     ):
-        """Add stock to inventory"""
-        item = db.query(InventoryItem).filter(InventoryItem.id == item_id).first()
+        """Add stock to inventory (scoped to restaurant)"""
+        query = db.query(InventoryItem).filter(InventoryItem.id == item_id)
+        if restaurant_id:
+            query = query.filter(InventoryItem.restaurant_id == restaurant_id)
+        item = query.first()
         
         if not item:
             raise HTTPException(
@@ -145,10 +165,14 @@ class InventoryService:
         item_id: int,
         new_quantity: float,
         reason: str,
-        created_by: int = None
+        created_by: int = None,
+        restaurant_id: int = None,
     ):
-        """Adjust inventory quantity"""
-        item = db.query(InventoryItem).filter(InventoryItem.id == item_id).first()
+        """Adjust inventory quantity (scoped to restaurant)"""
+        query = db.query(InventoryItem).filter(InventoryItem.id == item_id)
+        if restaurant_id:
+            query = query.filter(InventoryItem.restaurant_id == restaurant_id)
+        item = query.first()
         
         if not item:
             raise HTTPException(
@@ -184,10 +208,14 @@ class InventoryService:
         item_id: int,
         quantity: float,
         reason: str,
-        created_by: int = None
+        created_by: int = None,
+        restaurant_id: int = None,
     ):
-        """Record inventory wastage"""
-        item = db.query(InventoryItem).filter(InventoryItem.id == item_id).first()
+        """Record inventory wastage (scoped to restaurant)"""
+        query = db.query(InventoryItem).filter(InventoryItem.id == item_id)
+        if restaurant_id:
+            query = query.filter(InventoryItem.restaurant_id == restaurant_id)
+        item = query.first()
         
         if not item:
             raise HTTPException(
@@ -226,30 +254,39 @@ class InventoryService:
         db: Session,
         item_id: Optional[int] = None,
         transaction_type: Optional[str] = None,
-        limit: int = 100
+        limit: int = 100,
+        restaurant_id: int = None,
     ):
-        """Get inventory transactions"""
+        """Get inventory transactions (scoped to restaurant)"""
         query = db.query(InventoryTransaction).options(
             joinedload(InventoryTransaction.inventory_item)
         )
-        
+
+        if restaurant_id:
+            query = query.join(
+                InventoryItem,
+                InventoryTransaction.inventory_item_id == InventoryItem.id,
+            ).filter(InventoryItem.restaurant_id == restaurant_id)
+
         if item_id:
             query = query.filter(InventoryTransaction.inventory_item_id == item_id)
-        
+
         if transaction_type:
             query = query.filter(InventoryTransaction.transaction_type == transaction_type)
-        
+
         return query.order_by(InventoryTransaction.created_at.desc()).limit(limit).all()
     
     # ========== Purchase Order Methods ==========
     
     @staticmethod
-    def create_purchase_order(db: Session, order_data: PurchaseOrderCreate):
-        """Create a new purchase order"""
-        # Verify item exists
-        item = db.query(InventoryItem).filter(
+    def create_purchase_order(db: Session, order_data: PurchaseOrderCreate, restaurant_id: int = None):
+        """Create a new purchase order (scoped to restaurant)"""
+        query = db.query(InventoryItem).filter(
             InventoryItem.id == order_data.inventory_item_id
-        ).first()
+        )
+        if restaurant_id:
+            query = query.filter(InventoryItem.restaurant_id == restaurant_id)
+        item = query.first()
         
         if not item:
             raise HTTPException(
@@ -272,32 +309,45 @@ class InventoryService:
     def get_purchase_orders(
         db: Session,
         status: Optional[str] = None,
-        item_id: Optional[int] = None
+        item_id: Optional[int] = None,
+        restaurant_id: int = None,
     ):
-        """Get purchase orders with filtering"""
+        """Get purchase orders with filtering (scoped to restaurant)"""
         query = db.query(PurchaseOrder).options(
             joinedload(PurchaseOrder.inventory_item),
-            joinedload(PurchaseOrder.supplier)
+            joinedload(PurchaseOrder.supplier),
         )
-        
+
+        if restaurant_id:
+            query = query.join(
+                InventoryItem,
+                PurchaseOrder.inventory_item_id == InventoryItem.id,
+            ).filter(InventoryItem.restaurant_id == restaurant_id)
+
         if status:
             query = query.filter(PurchaseOrder.status == status)
-        
+
         if item_id:
             query = query.filter(PurchaseOrder.inventory_item_id == item_id)
-        
+
         return query.order_by(PurchaseOrder.order_date.desc()).all()
     
     @staticmethod
-    def receive_purchase_order(db: Session, order_id: int, created_by: int = None):
-        """Receive a purchase order and add stock"""
+    def receive_purchase_order(db: Session, order_id: int, created_by: int = None, restaurant_id: int = None):
+        """Receive a purchase order and add stock (scoped to restaurant)"""
         order = db.query(PurchaseOrder).filter(PurchaseOrder.id == order_id).first()
-        
+
         if not order:
-            raise HTTPException(
-                status_code=status.HTTP_404_NOT_FOUND,
-                detail="Purchase order not found"
-            )
+            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Purchase order not found")
+
+        # Verify order belongs to restaurant
+        if restaurant_id:
+            item = db.query(InventoryItem).filter(
+                InventoryItem.id == order.inventory_item_id,
+                InventoryItem.restaurant_id == restaurant_id,
+            ).first()
+            if not item:
+                raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Purchase order not found")
         
         if order.status != "pending":
             raise HTTPException(
@@ -324,27 +374,33 @@ class InventoryService:
         return order
     
     @staticmethod
-    def get_low_stock_items(db: Session):
-        """Get items with low stock"""
-        return db.query(InventoryItem).filter(
+    def get_low_stock_items(db: Session, restaurant_id: int = None):
+        """Get items with low stock (scoped to restaurant)"""
+        query = db.query(InventoryItem).filter(
             InventoryItem.is_active == True,
-            InventoryItem.quantity <= InventoryItem.min_stock_level
-        ).all()
-    
+            InventoryItem.quantity <= InventoryItem.min_stock_level,
+        )
+        if restaurant_id:
+            query = query.filter(InventoryItem.restaurant_id == restaurant_id)
+        return query.all()
+
     @staticmethod
-    def get_inventory_value(db: Session):
-        """Get total inventory value"""
-        result = db.query(
-            func.sum(InventoryItem.quantity * InventoryItem.cost_per_unit).label('total_value')
-        ).filter(InventoryItem.is_active == True).first()
-        
+    def get_inventory_value(db: Session, restaurant_id: int = None):
+        """Get total inventory value (scoped to restaurant)"""
+        query = db.query(
+            func.sum(InventoryItem.quantity * InventoryItem.cost_per_unit).label("total_value")
+        ).filter(InventoryItem.is_active == True)
+        if restaurant_id:
+            query = query.filter(InventoryItem.restaurant_id == restaurant_id)
+        result = query.first()
         return float(result.total_value or 0)
 
     @staticmethod
-    def predict_stock_depletion(db: Session, analysis_days: int = 14):
+    def predict_stock_depletion(db: Session, analysis_days: int = 14, restaurant_id: int = None):
         """
         Predict when each inventory item will run out based on historical
         order data cross-referenced with menu item ingredient links.
+        Scoped to the given restaurant.
         """
         from app.models.menu import MenuItemIngredient, MenuItem
         from app.models.order import Order, OrderItem, OrderStatus
@@ -352,8 +408,11 @@ class InventoryService:
 
         cutoff = datetime.utcnow() - timedelta(days=analysis_days)
 
-        # All active inventory items
-        items = db.query(InventoryItem).filter(InventoryItem.is_active == True).all()
+        # All active inventory items (scoped)
+        items_q = db.query(InventoryItem).filter(InventoryItem.is_active == True)
+        if restaurant_id:
+            items_q = items_q.filter(InventoryItem.restaurant_id == restaurant_id)
+        items = items_q.all()
 
         predictions = []
 

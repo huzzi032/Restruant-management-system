@@ -29,8 +29,7 @@ class CategoryResponse(CategoryBase):
     id: int
     item_count: int = 0
     
-    class Config:
-        from_attributes = True
+    model_config = {"from_attributes": True}
 
 
 # Menu Item Ingredient Schemas
@@ -48,8 +47,7 @@ class MenuItemIngredientResponse(MenuItemIngredientBase):
     name: Optional[str] = None
     unit: Optional[str] = None
     
-    class Config:
-        from_attributes = True
+    model_config = {"from_attributes": True}
 
 
 # Menu Item Schemas
@@ -91,5 +89,4 @@ class MenuItemResponse(MenuItemBase):
     ingredients: List[MenuItemIngredientResponse] = []
     created_at: Optional[datetime] = None
     
-    class Config:
-        from_attributes = True
+    model_config = {"from_attributes": True}

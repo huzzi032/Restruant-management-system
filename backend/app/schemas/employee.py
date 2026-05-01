@@ -72,8 +72,7 @@ class EmployeeResponse(EmployeeBase):
     attendance_rate: float
     created_at: Optional[datetime] = None
     
-    class Config:
-        from_attributes = True
+    model_config = {"from_attributes": True}
 
 
 # Attendance Schemas
@@ -106,8 +105,7 @@ class AttendanceResponse(AttendanceBase):
     employee_name: Optional[str] = None
     created_at: Optional[datetime] = None
     
-    class Config:
-        from_attributes = True
+    model_config = {"from_attributes": True}
 
 
 # Salary Schemas
@@ -151,5 +149,4 @@ class SalaryResponse(SalaryBase):
     paid_date: Optional[datetime] = None
     created_at: Optional[datetime] = None
     
-    class Config:
-        from_attributes = True
+    model_config = {"from_attributes": True}

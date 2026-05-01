@@ -46,17 +46,17 @@ const itemVariants = {
   },
 };
 
-function StatCard({ 
-  title, 
-  value, 
-  icon: Icon, 
+function StatCard({
+  title,
+  value,
+  icon: Icon,
   trend,
   trendUp,
   color,
-  delay 
-}: { 
-  title: string; 
-  value: string | number; 
+  delay
+}: {
+  title: string;
+  value: string | number;
   icon: any;
   trend?: string;
   trendUp?: boolean;

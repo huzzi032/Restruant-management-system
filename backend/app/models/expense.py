@@ -28,6 +28,9 @@ class Expense(Base):
     
     id = Column(Integer, primary_key=True, index=True)
     
+    # Tenant isolation
+    restaurant_id = Column(Integer, ForeignKey("restaurants.id"), nullable=True, index=True)
+
     # Expense info
     category = Column(Enum(ExpenseCategory), nullable=False)
     description = Column(Text, nullable=False)
