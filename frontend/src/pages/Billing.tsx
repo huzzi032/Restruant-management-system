@@ -1,25 +1,13 @@
 import { useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { motion, AnimatePresence } from 'framer-motion';
+import { motion } from 'framer-motion';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Badge } from '@/components/ui/badge';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { Separator } from '@/components/ui/separator';
-import {
-  Dialog,
-  DialogContent,
-  DialogHeader,
-  DialogTitle,
-} from '@/components/ui/dialog';
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from '@/components/ui/select';
+import { Label } from '@/components/ui/label';
 import {
   Search,
   CreditCard,
@@ -34,7 +22,6 @@ import {
 import { orderService, paymentService } from '@/services/api';
 import { toast } from 'sonner';
 import type { Order } from '@/types';
-import { Label } from '@/components/ui/label';
 
 export default function Billing() {
   const [search, setSearch] = useState('');
@@ -77,17 +64,6 @@ export default function Billing() {
       toast.error(error.response?.data?.detail || 'Payment failed');
       setShouldPrintAfterPayment(false);
     },
-  });
-
-  const cancelMutation = useMutation({
-    mutationFn: (id: number) => orderService.updateStatus(id, 'cancelled'),
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['billing-orders'] });
-      queryClient.invalidateQueries({ queryKey: ['active-orders'] });
-      setSelectedOrder(null);
-      toast.success('Order cancelled');
-    },
-    onError: (error: any) => toast.error(error.response?.data?.detail || 'Failed to cancel order'),
   });
 
   const filteredOrders = orders?.filter((order) =>
@@ -221,7 +197,7 @@ export default function Billing() {
               <Input
                 placeholder="Search by order number or table..."
                 value={search}
-                onChange={(e) => setSearch(e.target.value)}
+                onChange={(e: React.ChangeEvent<HTMLInputElement>) => setSearch(e.target.value)}
                 className="pl-10"
               />
             </div>
@@ -359,7 +335,7 @@ export default function Billing() {
                     type="number"
                     placeholder="Discount"
                     value={discountAmount}
-                    onChange={(e) => setDiscountAmount(e.target.value)}
+                    onChange={(e: React.ChangeEvent<HTMLInputElement>) => setDiscountAmount(e.target.value)}
                   />
                 </div>
                 <div className="space-y-3">
@@ -368,7 +344,7 @@ export default function Billing() {
                     type="number"
                     placeholder="Tip"
                     value={tipAmount}
-                    onChange={(e) => setTipAmount(e.target.value)}
+                    onChange={(e: React.ChangeEvent<HTMLInputElement>) => setTipAmount(e.target.value)}
                   />
                 </div>
               </div>

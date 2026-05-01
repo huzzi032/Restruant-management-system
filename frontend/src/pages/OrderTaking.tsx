@@ -6,7 +6,6 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Badge } from '@/components/ui/badge';
 import { ScrollArea } from '@/components/ui/scroll-area';
-import { Separator } from '@/components/ui/separator';
 import {
   Dialog,
   DialogContent,
@@ -370,7 +369,7 @@ export default function OrderTaking() {
                         <p className="text-sm font-medium">Table Number</p>
                         <Input
                           value={tableForm.table_number}
-                          onChange={(e) => setTableForm((prev) => ({ ...prev, table_number: e.target.value }))}
+                          onChange={(e: React.ChangeEvent<HTMLInputElement>) => setTableForm((prev) => ({ ...prev, table_number: e.target.value }))}
                           placeholder="e.g. T7"
                         />
                       </div>
@@ -380,14 +379,14 @@ export default function OrderTaking() {
                           type="number"
                           min="1"
                           value={tableForm.capacity}
-                          onChange={(e) => setTableForm((prev) => ({ ...prev, capacity: e.target.value }))}
+                          onChange={(e: React.ChangeEvent<HTMLInputElement>) => setTableForm((prev) => ({ ...prev, capacity: e.target.value }))}
                         />
                       </div>
                       <div className="space-y-1">
                         <p className="text-sm font-medium">Location</p>
                         <Input
                           value={tableForm.location}
-                          onChange={(e) => setTableForm((prev) => ({ ...prev, location: e.target.value }))}
+                          onChange={(e: React.ChangeEvent<HTMLInputElement>) => setTableForm((prev) => ({ ...prev, location: e.target.value }))}
                           placeholder="Indoor / Outdoor"
                         />
                       </div>
@@ -468,7 +467,7 @@ export default function OrderTaking() {
                 <Input
                   placeholder="Search order #, table, or name..."
                   value={activeOrderSearch}
-                  onChange={(e) => setActiveOrderSearch(e.target.value)}
+                  onChange={(e: React.ChangeEvent<HTMLInputElement>) => setActiveOrderSearch(e.target.value)}
                   className="pl-10 h-10"
                 />
               </div>
@@ -523,7 +522,7 @@ export default function OrderTaking() {
               <Input
                 placeholder="Search menu items..."
                 value={search}
-                onChange={(e) => setSearch(e.target.value)}
+                onChange={(e: React.ChangeEvent<HTMLInputElement>) => setSearch(e.target.value)}
                 className="pl-10"
               />
             </div>

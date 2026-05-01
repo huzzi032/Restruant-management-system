@@ -2,7 +2,7 @@
 Security utilities - JWT, password hashing
 """
 from datetime import datetime, timedelta
-from typing import Optional, Union
+from typing import Optional, Union, TYPE_CHECKING
 from jose import JWTError, jwt
 from passlib.context import CryptContext
 from fastapi import Depends, HTTPException, status
@@ -11,7 +11,9 @@ from sqlalchemy.orm import Session
 
 from app.core.config import settings
 from app.core.database import get_db
-from app.models.user import User
+
+if TYPE_CHECKING:
+    from app.models.user import User
 
 # Password hashing context
 pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
@@ -56,8 +58,9 @@ def decode_token(token: str) -> Optional[dict]:
 def get_current_user(
     credentials: HTTPAuthorizationCredentials = Depends(security_bearer),
     db: Session = Depends(get_db)
-) -> User:
+) -> "User":
     """Get current authenticated user from token"""
+    from app.models.user import User
     credentials_exception = HTTPException(
         status_code=status.HTTP_401_UNAUTHORIZED,
         detail="Could not validate credentials",
@@ -92,7 +95,7 @@ def get_current_user(
     return user
 
 
-def get_current_active_user(current_user: User = Depends(get_current_user)) -> User:
+def get_current_active_user(current_user: "User" = Depends(get_current_user)) -> "User":
     """Ensure user is active"""
     if not current_user.is_active:
         raise HTTPException(status_code=400, detail="Inactive user")
@@ -101,7 +104,7 @@ def get_current_active_user(current_user: User = Depends(get_current_user)) -> U
 
 def require_role(allowed_roles: list):
     """Dependency factory to require specific roles"""
-    def role_checker(current_user: User = Depends(get_current_user)) -> User:
+    def role_checker(current_user: "User" = Depends(get_current_user)) -> "User":
         if current_user.role not in allowed_roles:
             raise HTTPException(
                 status_code=status.HTTP_403_FORBIDDEN,
