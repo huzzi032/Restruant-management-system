@@ -29,6 +29,9 @@ def login(credentials: UserLogin, db: Session = Depends(get_db)):
             "token_type": result["token_type"],
             "user": result["user"].to_dict()
         }
+    except HTTPException as exc:
+        # Preserve auth errors (e.g. 401 for invalid credentials).
+        raise exc
     except Exception as e:
         logger.error(f"Login failed: {str(e)}")
         raise HTTPException(
