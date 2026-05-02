@@ -31,6 +31,60 @@ def _append_query_param(url: str, key: str, value: str) -> str:
     return urlunsplit((parts.scheme, parts.netloc, parts.path, new_query, parts.fragment))
 
 
+def _replace_port_in_hostport(hostport: str, port: int) -> str:
+    if not hostport:
+        return hostport
+
+    if hostport.startswith("["):
+        end = hostport.find("]")
+        if end != -1:
+            return f"{hostport[:end + 1]}:{port}"
+
+    if ":" in hostport:
+        host = hostport.rsplit(":", 1)[0]
+        return f"{host}:{port}"
+
+    return f"{hostport}:{port}"
+
+
+def _replace_port_in_netloc(netloc: str, port: int) -> str:
+    if not netloc:
+        return netloc
+
+    if "@" in netloc:
+        auth, hostport = netloc.rsplit("@", 1)
+        return f"{auth}@{_replace_port_in_hostport(hostport, port)}"
+
+    return _replace_port_in_hostport(netloc, port)
+
+
+def _maybe_force_supabase_pooler_mode(url: str) -> str:
+    parts = urlsplit(url)
+    host = parts.hostname or ""
+
+    if not host.endswith(".pooler.supabase.com"):
+        return url
+
+    mode = (os.getenv("DATABASE_POOLER_MODE") or os.getenv("SUPABASE_POOLER_MODE") or "").strip().lower()
+    if not mode:
+        if not _is_vercel():
+            return url
+        mode = "transaction"
+
+    if mode not in {"session", "transaction"}:
+        return url
+
+    desired_port = 5432 if mode == "session" else 6543
+    if parts.port == desired_port:
+        return url
+
+    if parts.port not in (None, 5432, 6543):
+        return url
+
+    new_netloc = _replace_port_in_netloc(parts.netloc, desired_port)
+    return urlunsplit((parts.scheme, new_netloc, parts.path, parts.query, parts.fragment))
+
+
 class Settings(BaseSettings):
     """Application settings"""
     
@@ -69,6 +123,8 @@ class Settings(BaseSettings):
             url = url.replace("postgres://", "postgresql+psycopg2://", 1)
         elif url.startswith("postgresql://") and "+" not in url.split("://", 1)[0]:
             url = url.replace("postgresql://", "postgresql+psycopg2://", 1)
+
+        url = _maybe_force_supabase_pooler_mode(url)
 
         # Add SSL parameters for PostgreSQL connections (especially for cloud databases like Supabase)
         if "postgresql+" in url:

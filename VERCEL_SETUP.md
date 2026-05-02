@@ -22,7 +22,15 @@ Value: postgresql+psycopg2://postgres:YOUR_PASSWORD@aws-0-<region>.pooler.supaba
 Environment: Production
 ```
 
+Optional (forces pooler mode selection when using a Supabase pooler host):
+```
+Name: DATABASE_POOLER_MODE
+Value: transaction
+Environment: Production
+```
+
 If `DATABASE_POOL_URL` is set, the app will use it instead of `DATABASE_URL`.
+`DATABASE_POOLER_URL` is also supported if you prefer that variable name.
 
 **Important Notes:**
 - Replace `postgres:Free%40Test%4012` with your actual Supabase credentials
