@@ -64,7 +64,11 @@ api.interceptors.response.use(
         url.includes('/auth/me');
       const skipExpiry = error.config?._skipAuthExpired === true;
 
-      if (!isAuthEndpoint && !skipExpiry && !isLoggingOut) {
+      // Only trigger logout if a token actually existed — prevents
+      // background/stale queries from causing a false "session expired"
+      const tokenExists = !!localStorage.getItem('token');
+
+      if (!isAuthEndpoint && !skipExpiry && !isLoggingOut && tokenExists) {
         isLoggingOut = true;
 
         // Clear stored auth

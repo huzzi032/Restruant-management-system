@@ -82,8 +82,11 @@ class AuthService:
         normalized_username = AuthService._normalize_username(username)
         query = db.query(User).filter(func.lower(User.username) == normalized_username)
 
-        if restaurant_code:
-            restaurant = AuthService._find_restaurant(db, restaurant_code)
+        # Treat empty string same as None — portal code is optional
+        effective_code = (restaurant_code or "").strip() or None
+
+        if effective_code:
+            restaurant = AuthService._find_restaurant(db, effective_code)
             if not restaurant:
                 return None
             query = query.filter(User.restaurant_id == restaurant.id)

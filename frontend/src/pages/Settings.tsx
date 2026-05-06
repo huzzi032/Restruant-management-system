@@ -10,6 +10,20 @@ import { Separator } from '@/components/ui/separator';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Badge } from '@/components/ui/badge';
 import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+} from '@/components/ui/dialog';
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from '@/components/ui/table';
+import {
   Settings,
   User,
   Bell,
@@ -18,11 +32,13 @@ import {
   CreditCard,
   Users,
   QrCode,
+  Pencil,
+  Trash2,
 } from 'lucide-react';
 import { useAuth } from '@/contexts/AuthContext';
 import { publicMenuService, resolveMediaUrl, systemService, userService } from '@/services/api';
 import { toast } from 'sonner';
-import type { BulkUserCreateResponse } from '@/types';
+import type { BulkUserCreateResponse, User as UserType } from '@/types';
 
 export default function SettingsPage() {
   const { user, hasRole } = useAuth();
@@ -48,6 +64,11 @@ export default function SettingsPage() {
 
   const [resName, setResName] = useState(localStorage.getItem('restaurant_name') || 'Restaurant Pro');
   const [resLogo, setResLogo] = useState(localStorage.getItem('restaurant_logo') || '');
+
+  // Portal edit/delete state
+  const [editPortal, setEditPortal] = useState<UserType | null>(null);
+  const [deletePortal, setDeletePortal] = useState<UserType | null>(null);
+  const [editPortalForm, setEditPortalForm] = useState({ full_name: '', role: 'waiter', password: '' });
 
   const handleSaveBranding = () => {
     localStorage.setItem('restaurant_name', resName);
@@ -89,7 +110,7 @@ export default function SettingsPage() {
       setLastBulkResult(result);
       queryClient.invalidateQueries({ queryKey: ['users'] });
       if (result.created_users.length > 0) {
-        toast.success(`${result.created_users.length} portal accounts created. Use shown usernames to login.`);
+        toast.success(`${result.created_users.length} portal accounts created.`);
       }
       if (result.skipped_usernames.length > 0) {
         toast.warning(`Skipped existing usernames: ${result.skipped_usernames.join(', ')}`);
@@ -97,6 +118,31 @@ export default function SettingsPage() {
     },
     onError: (error: any) => {
       toast.error(error.response?.data?.detail || 'Failed to create role portals');
+    },
+  });
+
+  const updatePortalMutation = useMutation({
+    mutationFn: ({ id, data }: { id: number; data: Partial<UserType> }) =>
+      userService.updateUser(id, data),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['users'] });
+      setEditPortal(null);
+      toast.success('Portal updated successfully');
+    },
+    onError: (error: any) => {
+      toast.error(error.response?.data?.detail || 'Failed to update portal');
+    },
+  });
+
+  const deletePortalMutation = useMutation({
+    mutationFn: (id: number) => userService.deleteUser(id),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['users'] });
+      setDeletePortal(null);
+      toast.success('Portal removed successfully');
+    },
+    onError: (error: any) => {
+      toast.error(error.response?.data?.detail || 'Failed to delete portal');
     },
   });
 
@@ -124,9 +170,7 @@ export default function SettingsPage() {
       toast.error('Password must be at least 6 characters');
       return;
     }
-
     setLastSharedPassword(bulkForm.shared_password);
-
     bulkCreateMutation.mutate({
       role: bulkForm.role as 'admin' | 'manager' | 'waiter' | 'chef' | 'cashier',
       quantity: Number(bulkForm.quantity || '0'),
@@ -147,6 +191,29 @@ export default function SettingsPage() {
       currency: businessForm.currency.trim().toUpperCase(),
     });
   };
+
+  const openEditPortal = (u: UserType) => {
+    setEditPortal(u);
+    setEditPortalForm({ full_name: u.full_name, role: u.role, password: '' });
+  };
+
+  const handleEditPortal = () => {
+    if (!editPortal) return;
+    const payload: Partial<UserType> & { password?: string } = {
+      full_name: editPortalForm.full_name.trim(),
+      role: editPortalForm.role as UserType['role'],
+    };
+    if (editPortalForm.password.trim()) {
+      (payload as any).password = editPortalForm.password.trim();
+    }
+    updatePortalMutation.mutate({ id: editPortal.id, data: payload });
+  };
+
+  // Staff portal users (non-admin)
+  const portalUsers = useMemo(
+    () => (users || []).filter((u) => u.id !== user?.id),
+    [users, user]
+  );
 
   return (
     <motion.div
@@ -185,6 +252,7 @@ export default function SettingsPage() {
           )}
         </TabsList>
 
+        {/* General Tab */}
         <TabsContent value="general" className="space-y-6">
           <Card>
             <CardHeader>
@@ -192,27 +260,17 @@ export default function SettingsPage() {
                 <Store className="h-5 w-5" />
                 Restaurant Information
               </CardTitle>
-              <CardDescription>
-                Update your restaurant details
-              </CardDescription>
+              <CardDescription>Update your restaurant details</CardDescription>
             </CardHeader>
             <CardContent className="space-y-4">
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <div className="space-y-2">
-                  <Label>Restaurant Name (Display & Bills)</Label>
-                  <Input
-                    placeholder="Your Restaurant Name"
-                    value={resName}
-                    onChange={(e) => setResName(e.target.value)}
-                  />
+                  <Label>Restaurant Name (Display &amp; Bills)</Label>
+                  <Input placeholder="Your Restaurant Name" value={resName} onChange={(e) => setResName(e.target.value)} />
                 </div>
                 <div className="space-y-2">
                   <Label>Restaurant Logo URL</Label>
-                  <Input
-                    placeholder="https://example.com/logo.png"
-                    value={resLogo}
-                    onChange={(e) => setResLogo(e.target.value)}
-                  />
+                  <Input placeholder="https://example.com/logo.png" value={resLogo} onChange={(e) => setResLogo(e.target.value)} />
                   {resLogo && (
                     <div className="mt-2 p-2 border rounded-md w-fit bg-muted/50">
                       <img src={resLogo} alt="Logo Preview" className="h-12 object-contain" />
@@ -242,9 +300,7 @@ export default function SettingsPage() {
                 <CreditCard className="h-5 w-5" />
                 Business Settings
               </CardTitle>
-              <CardDescription>
-                Configure tax rates and currency
-              </CardDescription>
+              <CardDescription>Configure tax rates and currency</CardDescription>
             </CardHeader>
             <CardContent className="space-y-4">
               <div className="grid grid-cols-1 gap-4">
@@ -275,23 +331,13 @@ export default function SettingsPage() {
                 <QrCode className="h-5 w-5" />
                 Public Menu QR
               </CardTitle>
-              <CardDescription>
-                Place this QR on tables to open your digital menu
-              </CardDescription>
+              <CardDescription>Place this QR on tables to open your digital menu</CardDescription>
             </CardHeader>
             <CardContent className="space-y-3">
               {qrData ? (
                 <>
-                  <img
-                    src={`data:${qrData.content_type};base64,${qrData.qr_code_base64}`}
-                    alt="Public menu QR code"
-                    className="w-44 h-44 border rounded-md"
-                  />
-                  <img
-                    src={resolveMediaUrl(`/api/v1/menu/public/qr-code/image?size=260`)}
-                    alt="Public menu QR code direct"
-                    className="w-44 h-44 border rounded-md"
-                  />
+                  <img src={`data:${qrData.content_type};base64,${qrData.qr_code_base64}`} alt="Public menu QR code" className="w-44 h-44 border rounded-md" />
+                  <img src={resolveMediaUrl(`/api/v1/menu/public/qr-code/image?size=260`)} alt="Public menu QR code direct" className="w-44 h-44 border rounded-md" />
                   <p className="text-sm text-muted-foreground break-all">{qrData.menu_url}</p>
                 </>
               ) : (
@@ -301,13 +347,12 @@ export default function SettingsPage() {
           </Card>
         </TabsContent>
 
+        {/* Profile Tab */}
         <TabsContent value="profile">
           <Card>
             <CardHeader>
               <CardTitle>Profile Information</CardTitle>
-              <CardDescription>
-                Update your personal details
-              </CardDescription>
+              <CardDescription>Update your personal details</CardDescription>
             </CardHeader>
             <CardContent className="space-y-4">
               <div className="flex items-center gap-4 mb-6">
@@ -342,13 +387,12 @@ export default function SettingsPage() {
           </Card>
         </TabsContent>
 
+        {/* Notifications Tab */}
         <TabsContent value="notifications">
           <Card>
             <CardHeader>
               <CardTitle>Notification Preferences</CardTitle>
-              <CardDescription>
-                Choose what notifications you want to receive
-              </CardDescription>
+              <CardDescription>Choose what notifications you want to receive</CardDescription>
             </CardHeader>
             <CardContent className="space-y-4">
               <div className="flex items-center justify-between py-3">
@@ -379,13 +423,12 @@ export default function SettingsPage() {
           </Card>
         </TabsContent>
 
+        {/* Security Tab */}
         <TabsContent value="security">
           <Card>
             <CardHeader>
               <CardTitle>Security Settings</CardTitle>
-              <CardDescription>
-                Manage your password and security preferences
-              </CardDescription>
+              <CardDescription>Manage your password and security preferences</CardDescription>
             </CardHeader>
             <CardContent className="space-y-4">
               <div className="space-y-2">
@@ -405,8 +448,10 @@ export default function SettingsPage() {
           </Card>
         </TabsContent>
 
+        {/* Staff Portals Tab */}
         {isAdmin && (
           <TabsContent value="staff-portals" className="space-y-6">
+            {/* Create portals */}
             <Card>
               <CardHeader>
                 <CardTitle>Dynamic Role Portals</CardTitle>
@@ -498,7 +543,6 @@ export default function SettingsPage() {
                           <div className="min-w-0 space-y-1">
                             <p className="font-medium truncate">{staff.full_name}</p>
                             <p className="text-muted-foreground truncate">@{staff.username}</p>
-                            <p className="text-xs text-muted-foreground">ID: {staff.id}</p>
                             <p className="text-xs text-muted-foreground">Password: {lastSharedPassword || bulkForm.shared_password}</p>
                           </div>
                           <Badge variant="outline" className="capitalize shrink-0">{staff.role}</Badge>
@@ -510,6 +554,7 @@ export default function SettingsPage() {
               </CardContent>
             </Card>
 
+            {/* Portal Summary */}
             <Card>
               <CardHeader>
                 <CardTitle>Portal Summary</CardTitle>
@@ -523,9 +568,144 @@ export default function SettingsPage() {
                 ))}
               </CardContent>
             </Card>
+
+            {/* Show / Edit / Delete portals */}
+            <Card>
+              <CardHeader>
+                <CardTitle>All Staff Portals</CardTitle>
+                <CardDescription>View, edit or delete existing portal accounts</CardDescription>
+              </CardHeader>
+              <CardContent>
+                {!portalUsers.length ? (
+                  <p className="text-sm text-muted-foreground py-4 text-center">No staff portals found.</p>
+                ) : (
+                  <div className="overflow-x-auto">
+                    <Table>
+                      <TableHeader>
+                        <TableRow>
+                          <TableHead>Name</TableHead>
+                          <TableHead>Username</TableHead>
+                          <TableHead>Role</TableHead>
+                          <TableHead>Status</TableHead>
+                          <TableHead className="text-right">Actions</TableHead>
+                        </TableRow>
+                      </TableHeader>
+                      <TableBody>
+                        {portalUsers.map((u) => (
+                          <TableRow key={u.id}>
+                            <TableCell className="font-medium">{u.full_name}</TableCell>
+                            <TableCell className="text-muted-foreground">@{u.username}</TableCell>
+                            <TableCell>
+                              <Badge variant="outline" className="capitalize">{u.role}</Badge>
+                            </TableCell>
+                            <TableCell>
+                              <Badge variant={u.is_active ? 'default' : 'secondary'}>
+                                {u.is_active ? 'Active' : 'Inactive'}
+                              </Badge>
+                            </TableCell>
+                            <TableCell className="text-right">
+                              <div className="flex items-center justify-end gap-2">
+                                <Button
+                                  size="sm"
+                                  variant="outline"
+                                  className="h-8 w-8 p-0"
+                                  title="Edit portal"
+                                  onClick={() => openEditPortal(u)}
+                                >
+                                  <Pencil className="h-3.5 w-3.5" />
+                                </Button>
+                                <Button
+                                  size="sm"
+                                  variant="outline"
+                                  className="h-8 w-8 p-0 text-destructive hover:bg-destructive hover:text-destructive-foreground"
+                                  title="Delete portal"
+                                  onClick={() => setDeletePortal(u)}
+                                >
+                                  <Trash2 className="h-3.5 w-3.5" />
+                                </Button>
+                              </div>
+                            </TableCell>
+                          </TableRow>
+                        ))}
+                      </TableBody>
+                    </Table>
+                  </div>
+                )}
+              </CardContent>
+            </Card>
           </TabsContent>
         )}
       </Tabs>
+
+      {/* Edit Portal Dialog */}
+      <Dialog open={!!editPortal} onOpenChange={(open) => { if (!open) setEditPortal(null); }}>
+        <DialogContent className="max-w-sm">
+          <DialogHeader>
+            <DialogTitle>Edit Portal — @{editPortal?.username}</DialogTitle>
+          </DialogHeader>
+          <div className="space-y-3">
+            <div className="space-y-1">
+              <Label>Full Name</Label>
+              <Input
+                value={editPortalForm.full_name}
+                onChange={(e) => setEditPortalForm((prev) => ({ ...prev, full_name: e.target.value }))}
+              />
+            </div>
+            <div className="space-y-1">
+              <Label>Role</Label>
+              <select
+                className="h-10 rounded-md border bg-background px-3 w-full"
+                value={editPortalForm.role}
+                onChange={(e) => setEditPortalForm((prev) => ({ ...prev, role: e.target.value }))}
+              >
+                <option value="waiter">Waiter</option>
+                <option value="chef">Chef</option>
+                <option value="cashier">Cashier</option>
+                <option value="manager">Manager</option>
+                <option value="admin">Admin</option>
+              </select>
+            </div>
+            <div className="space-y-1">
+              <Label>New Password <span className="text-muted-foreground text-xs">(leave blank to keep)</span></Label>
+              <Input
+                type="text"
+                placeholder="New password (optional)"
+                value={editPortalForm.password}
+                onChange={(e) => setEditPortalForm((prev) => ({ ...prev, password: e.target.value }))}
+              />
+            </div>
+            <div className="flex gap-2 pt-1">
+              <Button variant="outline" className="flex-1" onClick={() => setEditPortal(null)}>Cancel</Button>
+              <Button className="flex-1" onClick={handleEditPortal} disabled={updatePortalMutation.isPending}>
+                {updatePortalMutation.isPending ? 'Saving...' : 'Save Changes'}
+              </Button>
+            </div>
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      {/* Delete Portal Confirmation Dialog */}
+      <Dialog open={!!deletePortal} onOpenChange={(open) => { if (!open) setDeletePortal(null); }}>
+        <DialogContent className="max-w-sm">
+          <DialogHeader>
+            <DialogTitle>Delete Portal</DialogTitle>
+          </DialogHeader>
+          <p className="text-muted-foreground text-sm">
+            Are you sure you want to deactivate <strong>@{deletePortal?.username}</strong> ({deletePortal?.full_name})?
+          </p>
+          <div className="flex gap-2 pt-2">
+            <Button variant="outline" className="flex-1" onClick={() => setDeletePortal(null)}>Cancel</Button>
+            <Button
+              variant="destructive"
+              className="flex-1"
+              onClick={() => deletePortal && deletePortalMutation.mutate(deletePortal.id)}
+              disabled={deletePortalMutation.isPending}
+            >
+              {deletePortalMutation.isPending ? 'Deleting...' : 'Delete'}
+            </Button>
+          </div>
+        </DialogContent>
+      </Dialog>
     </motion.div>
   );
 }

@@ -1,5 +1,9 @@
 """
 Employee management router
+
+IMPORTANT: All fixed-path routes (/attendance/*, /salaries, /salaries/*) MUST be
+registered BEFORE any wildcard /{employee_id} routes. Otherwise FastAPI tries to
+parse the literal path segment (e.g. 'salaries') as an integer and returns 422.
 """
 from fastapi import APIRouter, Depends, HTTPException, status, Query
 from sqlalchemy.orm import Session
@@ -7,7 +11,7 @@ from typing import List, Optional
 from datetime import date
 
 from app.core.database import get_db
-from app.core.security import get_current_user, require_manager, require_admin
+from app.core.security import require_manager, require_admin
 from app.schemas.employee import (
     EmployeeCreate, EmployeeUpdate, EmployeeResponse,
     AttendanceCreate, AttendanceUpdate, AttendanceResponse,
@@ -19,7 +23,7 @@ from app.models.user import User
 router = APIRouter()
 
 
-# ========== Employee Endpoints ==========
+# ========== Collection Endpoints (no path param) ==========
 
 @router.get("/", response_model=List[EmployeeResponse])
 def get_employees(
@@ -34,22 +38,6 @@ def get_employees(
     return [emp.to_dict() for emp in employees]
 
 
-@router.get("/{employee_id}", response_model=EmployeeResponse)
-def get_employee(
-    employee_id: int,
-    db: Session = Depends(get_db),
-    current_user: User = Depends(require_manager)
-):
-    """Get employee by ID"""
-    employee = EmployeeService.get_employee_by_id(db, employee_id)
-    if not employee:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail="Employee not found"
-        )
-    return employee.to_dict()
-
-
 @router.post("/", response_model=EmployeeResponse)
 def create_employee(
     employee_data: EmployeeCreate,
@@ -61,30 +49,7 @@ def create_employee(
     return employee.to_dict()
 
 
-@router.put("/{employee_id}", response_model=EmployeeResponse)
-def update_employee(
-    employee_id: int,
-    employee_data: EmployeeUpdate,
-    db: Session = Depends(get_db),
-    current_user: User = Depends(require_manager)
-):
-    """Update employee (manager and above)"""
-    employee = EmployeeService.update_employee(db, employee_id, employee_data)
-    return employee.to_dict()
-
-
-@router.delete("/{employee_id}")
-def delete_employee(
-    employee_id: int,
-    db: Session = Depends(get_db),
-    current_user: User = Depends(require_manager)
-):
-    """Delete (deactivate) employee (manager and above)"""
-    EmployeeService.delete_employee(db, employee_id)
-    return {"message": "Employee deactivated successfully"}
-
-
-# ========== Attendance Endpoints ==========
+# ========== Attendance Endpoints — BEFORE /{employee_id} ==========
 
 @router.get("/attendance/records", response_model=List[AttendanceResponse])
 def get_attendance(
@@ -122,20 +87,7 @@ def update_attendance(
     return record.to_dict()
 
 
-@router.get("/{employee_id}/attendance-summary")
-def get_attendance_summary(
-    employee_id: int,
-    month: int = Query(..., ge=1, le=12),
-    year: int = Query(..., ge=2000),
-    db: Session = Depends(get_db),
-    current_user: User = Depends(require_manager)
-):
-    """Get monthly attendance summary"""
-    summary = EmployeeService.get_monthly_attendance_summary(db, employee_id, month, year)
-    return summary
-
-
-# ========== Salary Endpoints ==========
+# ========== Salary Endpoints — BEFORE /{employee_id} ==========
 
 @router.get("/salaries", response_model=List[SalaryResponse])
 def get_salaries(
@@ -183,6 +135,60 @@ def process_salary_payment(
     """Process salary payment (admin only)"""
     salary = EmployeeService.process_salary_payment(db, salary_id, current_user.id)
     return salary.to_dict()
+
+
+# ========== Per-Employee Wildcard Endpoints — MUST come last ==========
+
+@router.get("/{employee_id}", response_model=EmployeeResponse)
+def get_employee(
+    employee_id: int,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(require_manager)
+):
+    """Get employee by ID"""
+    employee = EmployeeService.get_employee_by_id(db, employee_id)
+    if not employee:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Employee not found"
+        )
+    return employee.to_dict()
+
+
+@router.put("/{employee_id}", response_model=EmployeeResponse)
+def update_employee(
+    employee_id: int,
+    employee_data: EmployeeUpdate,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(require_manager)
+):
+    """Update employee (manager and above)"""
+    employee = EmployeeService.update_employee(db, employee_id, employee_data)
+    return employee.to_dict()
+
+
+@router.delete("/{employee_id}")
+def delete_employee(
+    employee_id: int,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(require_manager)
+):
+    """Delete (deactivate) employee (manager and above)"""
+    EmployeeService.delete_employee(db, employee_id)
+    return {"message": "Employee deactivated successfully"}
+
+
+@router.get("/{employee_id}/attendance-summary")
+def get_attendance_summary(
+    employee_id: int,
+    month: int = Query(..., ge=1, le=12),
+    year: int = Query(..., ge=2000),
+    db: Session = Depends(get_db),
+    current_user: User = Depends(require_manager)
+):
+    """Get monthly attendance summary"""
+    summary = EmployeeService.get_monthly_attendance_summary(db, employee_id, month, year)
+    return summary
 
 
 @router.post("/{employee_id}/auto-generate-salary")

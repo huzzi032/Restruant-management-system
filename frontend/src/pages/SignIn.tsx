@@ -8,9 +8,9 @@ import { motion } from 'framer-motion';
 import { AuthPageChrome } from '@/components/marketing/AuthPageChrome';
 
 const steps = [
-  { num: '1', label: 'Paste your portal code' },
-  { num: '2', label: 'Enter staff credentials' },
-  { num: '3', label: 'Access your workspace' },
+  { num: '1', label: 'Portal code (optional)' },
+  { num: '2', label: 'Enter credentials' },
+  { num: '3', label: 'Access workspace' },
 ];
 
 function GlowInput({
@@ -134,20 +134,21 @@ export default function SignIn() {
 
           <div className="p-6">
             <form onSubmit={handleSubmit} className="space-y-4">
-              {/* Portal code */}
+              {/* Portal code - optional */}
               <div className="space-y-2">
                 <Label htmlFor="restaurant_code" className="flex items-center gap-1.5 font-sans text-sm text-white/70">
                   Portal code
+                  <span className="text-[10px] text-white/35 font-normal">(optional)</span>
                   <span className="group relative cursor-help">
                     <Info className="h-3.5 w-3.5 text-[#3B82F6]/60" />
-                    <span className="absolute bottom-full left-1/2 z-50 mb-2 hidden w-52 -translate-x-1/2 rounded-lg bg-[#0a0a0a] px-3 py-2 text-center text-[11px] text-white/80 shadow-xl ring-1 ring-white/10 group-hover:block">
-                      Your portal code was generated when your restaurant was created.
+                    <span className="absolute bottom-full left-1/2 z-50 mb-2 hidden w-56 -translate-x-1/2 rounded-lg bg-[#0a0a0a] px-3 py-2 text-center text-[11px] text-white/80 shadow-xl ring-1 ring-white/10 group-hover:block">
+                      Required only for staff accounts. Admins can leave this blank and log in with username &amp; password only.
                     </span>
                   </span>
                 </Label>
                 <GlowInput
                   id="restaurant_code"
-                  placeholder="e.g. hadiq-4f3a"
+                  placeholder="e.g. hadiq-4f3a  (leave blank if admin)"
                   value={credentials.restaurant_code}
                   onChange={(e) => setCredentials({ ...credentials, restaurant_code: e.target.value })}
                   icon={KeyRound}
@@ -221,7 +222,8 @@ export default function SignIn() {
 
               {/* Info banner */}
               <div className="rounded-xl border border-[#3B82F6]/20 bg-[#3B82F6]/8 p-3 font-sans text-xs text-[#93C5FD]">
-                <strong className="text-[#60A5FA]">Staff?</strong> Use the portal code from your admin, then the username and password from Settings → Staff portals.
+                <strong className="text-[#60A5FA]">Admin?</strong> Leave portal code blank — just use your username &amp; password.{' '}
+                <strong className="text-[#60A5FA]">Staff?</strong> Ask your admin for the portal code and use your assigned credentials.
               </div>
             </form>
 

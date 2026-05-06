@@ -56,7 +56,13 @@ def get_inventory_report(
     current_user: User = Depends(require_manager),
 ):
     """Get inventory report (manager and above)"""
-    return ReportService.get_inventory_report(db, current_user.restaurant_id)
+    try:
+        return ReportService.get_inventory_report(db, current_user.restaurant_id)
+    except Exception as exc:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Failed to generate inventory report: {str(exc)}"
+        )
 
 
 @router.get("/employees")
